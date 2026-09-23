@@ -26,6 +26,9 @@ extern "C" {
  * keyboard; USB pads only with CONFIG_RETRO_USB_PADS, deferred to v2) with the task layout of plan §3.2. max_w/max_h size
  * the native frame buffers. Loads controller remaps from the SD card. */
 bool emu_frontend_start(unsigned max_w, unsigned max_h);
+
+/* Draw the touch controls (on by default once the frontend starts). */
+void emu_touch_overlay_enable(bool on);
 void emu_frontend_stop(void);
 
 /* Called on the emu task with hotkeys that were just pressed (edges). */

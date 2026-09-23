@@ -127,6 +127,22 @@ size_t cm_mapping_serialize(char *buf, size_t cap);
  * that waits for touch reports. */
 bool cm_touch_source_start(int core, int priority);
 
+/* The default touch layout, in landscape pixels, for drawing it. Circles;
+ * the D-pad is the one with btn == CM_BTN_UP and covers all four
+ * directions. */
+typedef struct {
+    int16_t x, y, r;
+    cm_button_t btn;
+    const char *label;
+} cm_touch_zone_t;
+
+int cm_touch_layout(const cm_touch_zone_t **zones);
+
+/* Controls held on the touch screen now (CM_BIT(CM_BTN_*)), and the latest
+ * touch points (returns their number). */
+uint32_t cm_touch_held(void);
+int cm_touch_points(retro_touch_point_t *pts, int max);
+
 /* Built-in keyboard (retro_keys_read), polled from cm_poll(). */
 bool cm_keys_source_start(void);
 

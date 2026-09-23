@@ -20,6 +20,7 @@
 #include <stdint.h>
 
 #include "retro_core.h"
+#include "retro_fb.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -56,6 +57,18 @@ void vp_frame_begin(retro_video_frame_t *out);
 
 /* Hand the frame drawn since vp_frame_begin() to the display. */
 void vp_frame_publish(unsigned width, unsigned height);
+
+/* ---- Decorations ----------------------------------------------------------------- */
+
+/*
+ * Called on the video_out task for every frame, after the game image and
+ * the border are drawn and before the performance overlay: e.g. the touch
+ * controls. full is true when the border was just cleared (redraw
+ * everything); game is where the game image went (redraw anything on top of
+ * it every frame). Must be quick: it's inside the frame budget.
+ */
+typedef void (*vp_decor_fn)(const retro_fb_t *fb, const retro_rect_t *game, bool full, void *ctx);
+void vp_set_decor(vp_decor_fn fn, void *ctx);
 
 /* ---- Performance overlay (spec §45) ---------------------------------------- */
 

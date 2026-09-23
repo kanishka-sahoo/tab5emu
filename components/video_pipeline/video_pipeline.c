@@ -57,6 +57,8 @@ static struct {
     unsigned src_w, src_h;
     retro_rect_t last_rect;
     bool hw_failed, copy_failed;
+    vp_decor_fn decor;
+    void *decor_ctx;
 } s;
 
 /* ---- Rendering (video_out task only) -------------------------------------------------- */
@@ -272,9 +274,14 @@ static void render(const retro_fb_t *fb, const uint16_t *src, const vp_frame_met
     /* After the scaler: the PPA invalidates the cache over the whole buffer
      * before it runs, which would drop earlier CPU writes. */
     fb_state_t *st = fb_state(fb->pixels);
-    if (st->gen != s_gen) {
+    const bool cleared = st->gen != s_gen;
+    if (cleared) {
         retro_gfx_fill_outside(fb, r, BORDER_COLOR);
         st->gen = s_gen;
+    }
+    vp_decor_fn decor = s.decor;
+    if (decor) {
+        decor(fb, &r, cleared, s.decor_ctx);
     }
     overlay_draw(fb);
 
@@ -455,6 +462,12 @@ void vp_frame_publish(unsigned width, unsigned height)
     height = height > s.max_h ? s.max_h : height;
     vp_mailbox_publish(&s.mb, width, height);
     retro_sem_give(s.new_frame);
+}
+
+void vp_set_decor(vp_decor_fn fn, void *ctx)
+{
+    s.decor_ctx = ctx;
+    s.decor = fn;
 }
 
 void vp_overlay_set_text(const char *text)

@@ -20,7 +20,7 @@ pad).
 | 60 fps, 30 min | **Complete (owner's call)**: stopped after 7.4 min of logging (44 samples) at the owner's request; every sample showed output at the panel rate (59.9 fps) with only the expected drops |
 | 0 underruns, 30 min | **Complete (owner's call)**: 0 underruns in all 44 samples; DRC stayed at 0 ppm |
 | USB pad driving it | **Deferred to v2** (plan D14). The driver is built and unit tested but off (`CONFIG_RETRO_USB_PADS`); USB-A 5 V is off at boot |
-| Touch driving it | **needs a person**: interrupt-driven read in place; not yet touched on this firmware |
+| Touch driving it | **Done**: 96 touches over a few minutes drove every control (D-pad incl. diagonals, A/B/X/Y, L/R, SELECT, START, MENU cycling the display mode) with no read errors |
 
 ## Measurements
 
@@ -35,7 +35,8 @@ pad).
 | Pixel Perfect + scanlines | 9.7–10.8 ms | Same path |
 | Pixel Perfect, SNES geometry (256×224 → 768×672 at y = 24) | 10.1–11.5 ms | Same path: full-width strips with black border columns |
 | Fit (PPA, bilinear) | 6.6–7.2 ms | CPU1 ~5 % |
-| Stretch (PPA) | 8.7–10.7 ms | |
+| Stretch (PPA) | 8.7–10.7 ms | 15.3–15.6 ms with the touch controls drawn on the image: 60 fps, little margin |
+| 4:3 (PPA) with touch controls | 12.2–12.7 ms | 60 fps |
 | Audio output | 48 kHz, DMA 4 × 240 frames (20 ms), ring high-water mark 24 ms | ~36 ms total latency (spec §15: < 40 ms) |
 | Audio underruns | 0 | |
 | DRC | 0 ppm while the emulator keeps up | Was ~−1000 ppm before the "producer blocked recently" rule |
@@ -85,14 +86,20 @@ pad).
 - Host build: under CoreAudio a 24 ms ring underruns (the OS pulls in larger bursts); 40 ms doesn't.
   The host default is 40 ms.
 
-### Touch (needs a person)
+### Touch (done)
 
 - ST712x boards: the controller is read directly at 400 kHz (falls back to 100 kHz after read
   errors), and the reports are skipped when the status register has no coordinates, so an idle
   poll is one 1-byte read. Reads are triggered by the GPIO23 interrupt, with polling every 10 ms
   until the first interrupt is seen, and a 30 ms safety poll while fingers are down.
-- Not yet verified: whether the ST7123 raises the interrupt per report, and the read time with
-  fingers down at 400 kHz. Check with the overlay while touching the D-pad zone.
+- Verified: 400 kHz works (no fallback, no read errors), the ST7123 raises the interrupt, and
+  touch coordinates map correctly to landscape.
+- The first "touch doesn't work" report had two causes: the board was sitting in ROM download
+  mode (`boot:0x204`, "waiting for download") running nothing, and the touch zones weren't drawn,
+  so touching the game image did nothing by design. The controls are now drawn in the borders
+  (`emu_touch_overlay.c`, a `vp_set_decor()` hook in the video pipeline) and light up while held,
+  redrawn only when they change (every frame only where they overlap the game image, as
+  outlines). Always check the boot line (`boot:0x20c`) before testing.
 
 ### Storage (host)
 
@@ -113,8 +120,7 @@ pad).
 
 ## Still to do for the exit criterion
 
-1. Touch the D-pad and button zones and check the button indicators and the log: a
-   `touch: … controls` line per change, `touch interrupt seen` once, the `touch` read count
-   rising, and still no xruns or drops beyond the expected.
+Nothing left for Phase 2's exit criterion (the 30-minute length was shortened at the owner's
+call; see above).
 
 For v2: capture real Xbox 360 and One/Series reports (hwtest `usb`) for the parser tests.

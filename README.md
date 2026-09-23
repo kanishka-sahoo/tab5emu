@@ -86,12 +86,13 @@ every button, MENU/POWER hotkey lamps, the frame counter, a 1-pixel checkerboard
 It ticks at 880 Hz every emulated second; holding A or B plays a tone (left / right channel). The
 performance overlay (spec §45) sits in the right-hand border.
 
-Input is the touch screen (v1 has no USB controllers; see below). Touch zones (until the Phase 3
-overlay draws them): D-pad centred at (128, 440) in the left border, A/B/X/Y around (1110, 440) in
-the right border, SELECT/START along the bottom right, L/R in the top corners, MENU in the top-right
-corner. MENU (the corner zone, or SELECT+START held 1 s) cycles the display mode; holding the MENU
-zone 3 s lights POWER (the shutdown itself is Phase 7). Every change in the touched controls is
-logged, and the summary line counts touch reads.
+Input is the touch screen (v1 has no USB controllers; see below). The touch controls are drawn in
+the side borders and light up green while held: L, the D-pad, SEL and MENU on the left; R, X/Y/A/B
+and START on the right. Where they overlap the game image (4:3, Stretch) they're drawn as outlines.
+This is a fixed layout until the Phase 3 touch overlay makes it configurable. MENU (or SELECT+START
+held 1 s) cycles the display mode; holding MENU 3 s lights POWER (the shutdown itself is Phase 7).
+Each touch down/up and each change in the held controls is logged, and the summary line counts
+touch reads.
 
 A summary line is logged every 10 s. Serial commands: `mode <0-4>` (Pixel Perfect, Original, 4:3,
 Fit, Stretch), `scan on|off`, `overlay on|off`, `bright <0-100>`, `vol <0-100>`,

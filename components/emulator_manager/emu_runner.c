@@ -58,7 +58,9 @@ bool emu_frontend_start(unsigned max_w, unsigned max_h)
         cm_mapping_load(CONTROLLERS_JSON);
     }
     cm_keys_source_start();
-    cm_touch_source_start(CONFIG_RETRO_TASK_INPUT_CORE, CONFIG_RETRO_TASK_INPUT_PRIO);
+    if (cm_touch_source_start(CONFIG_RETRO_TASK_INPUT_CORE, CONFIG_RETRO_TASK_INPUT_PRIO)) {
+        emu_touch_overlay_enable(true);
+    }
 #if CONFIG_RETRO_USB_PADS
     cm_xinput_start(CONFIG_RETRO_TASK_INPUT_CORE, CONFIG_RETRO_TASK_USB_PRIO);
 #else

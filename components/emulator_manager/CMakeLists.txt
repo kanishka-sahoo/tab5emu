@@ -2,6 +2,7 @@
 set(EMU_SRCS
     emu_monitor.c
     emu_runner.c
+    emu_touch_overlay.c
 )
 
 if(ESP_PLATFORM)
