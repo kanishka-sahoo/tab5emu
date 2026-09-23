@@ -1,5 +1,6 @@
 /*
  * RetroHAL time: monotonic clock and the battery-backed wall clock (spec §24).
+ * FROZEN (plan Phase 2).
  */
 #pragma once
 

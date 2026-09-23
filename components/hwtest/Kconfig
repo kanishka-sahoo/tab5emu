@@ -2,10 +2,11 @@ menu "Hardware test (hwtest)"
 
     config RETRO_HWTEST_BOOT
         bool "Boot into the hardware test"
-        default y
+        default n
         help
-            Start the Phase 1 bring-up tests instead of the (not yet
-            written) launcher.
+            Start the Phase 1 bring-up tests instead of the Phase 2
+            pipeline test (synthetic core). Later this becomes Recovery ->
+            "Test hardware".
 
     config RETRO_HWTEST_AUTORUN
         bool "Run the automatic tests at boot"

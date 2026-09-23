@@ -66,6 +66,8 @@ CONFIG_BSP_ERROR_CHECK=n
 CONFIG_BSP_LCD_DPI_BUFFER_NUMS=2
 
 # --- Storage --------------------------------------------------------------------
+# The card mounts at its logical RetroHAL path (retro_storage.h, spec §20).
+CONFIG_BSP_SD_MOUNT_POINT="/storage/sd"
 # Long file names for ROM libraries.
 CONFIG_FATFS_LFN_HEAP=y
 CONFIG_FATFS_MAX_LFN=255

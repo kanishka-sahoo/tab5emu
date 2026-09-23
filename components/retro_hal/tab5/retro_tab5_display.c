@@ -12,8 +12,11 @@
 #include "esp_cache.h"
 #include "esp_lcd_mipi_dsi.h"
 #include "esp_lcd_panel_ops.h"
+#include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
+#include "hal/mipi_dsi_brg_ll.h"
+#include "hal/mipi_dsi_host_ll.h"
 #include "sdkconfig.h"
 
 #include "retro_log.h"
@@ -30,7 +33,10 @@
 static esp_lcd_panel_handle_t s_panel;
 static uint16_t *s_fb[2];
 static volatile uint32_t s_frames;
+static volatile int64_t s_last_frame_us;
+static volatile uint32_t s_period_us;
 static SemaphoreHandle_t s_frame_sem;
+static float s_refresh_hz;
 
 static bool on_frame_done(esp_lcd_panel_handle_t panel, esp_lcd_dpi_panel_event_data_t *edata,
                           void *ctx)
@@ -38,10 +44,60 @@ static bool on_frame_done(esp_lcd_panel_handle_t panel, esp_lcd_dpi_panel_event_
     (void)panel;
     (void)edata;
     (void)ctx;
+    int64_t now = esp_timer_get_time();
+    if (s_last_frame_us) {
+        s_period_us = (uint32_t)(now - s_last_frame_us);
+    }
+    s_last_frame_us = now;
     s_frames++;
     BaseType_t woken = pdFALSE;
     xSemaphoreGiveFromISR(s_frame_sem, &woken);
     return woken == pdTRUE;
+}
+
+/*
+ * Retime the panel to 60 Hz (bring-up finding: the BSP's ST7123 timings give
+ * 57.5 Hz, which drops ~2.6 NES frames a second). The line length and pixel
+ * clock stay as the BSP set them; only the vertical front porch shrinks, in
+ * both the DSI host and the bridge. The new total takes effect from the next
+ * frame.
+ */
+static void retime_60hz(void)
+{
+#if CONFIG_RETRO_TAB5_DISPLAY_60HZ
+    /* BSP 1.3.1 (bsp_display.c): 70 MHz DPI clock, 802-pixel lines. */
+    const uint32_t dpi_hz = 70000000, htotal = 802;
+    uint32_t vsw, vbp;
+    switch (retro_tab5_panel()) {
+    case RETRO_TAB5_PANEL_ST7123: vsw = 2; vbp = 8; break;
+    case RETRO_TAB5_PANEL_ST7121: vsw = 20; vbp = 24; break;
+    default:
+        /* ILI9881C: 60 MHz, 940-pixel lines, 1324 lines = 48.2 Hz; reaching
+         * 60 Hz needs a faster pixel clock, not a shorter porch. */
+        RLOGW(VIDEO, "no 60 Hz timing for this panel; keeping the BSP's");
+        return;
+    }
+    const uint32_t vtotal = (dpi_hz + htotal * 30) / (htotal * 60);
+    const uint32_t vfp = vtotal - vsw - vbp - RETRO_TAB5_PANEL_H;
+    mipi_dsi_host_ll_dpi_set_vertical_timing(MIPI_DSI_LL_GET_HOST(0), vsw, vbp, RETRO_TAB5_PANEL_H, vfp);
+    mipi_dsi_brg_ll_set_vertical_timing(MIPI_DSI_LL_GET_BRG(0), vsw, vbp, RETRO_TAB5_PANEL_H, vfp);
+    mipi_dsi_brg_ll_update_dpi_config(MIPI_DSI_LL_GET_BRG(0));
+    RLOGI(VIDEO, "retimed to %u lines (front porch %u): %.2f Hz nominal", (unsigned)vtotal,
+          (unsigned)vfp, (double)dpi_hz / (double)(htotal * vtotal));
+#endif
+}
+
+/* Frame rate over ~12 frames (~0.2 s). */
+static float measure_refresh(void)
+{
+    retro_tab5_display_wait_frame(100);
+    uint32_t f0 = s_frames;
+    int64_t t0 = esp_timer_get_time();
+    for (int i = 0; i < 12; i++) {
+        retro_tab5_display_wait_frame(100);
+    }
+    int64_t dt = esp_timer_get_time() - t0;
+    return dt > 0 ? (float)(s_frames - f0) * 1e6f / (float)dt : 0.0f;
 }
 
 bool retro_tab5_display_init(void)
@@ -97,9 +153,28 @@ bool retro_tab5_display_init(void)
 
     s_panel = h.panel;
     esp_lcd_panel_disp_on_off(s_panel, true);
-    RLOGI(VIDEO, "display %dx%d, %u Mbps/lane, fb0 %p fb1 %p", RETRO_TAB5_PANEL_W,
-          RETRO_TAB5_PANEL_H, (unsigned)cfg.dsi_bus.lane_bit_rate_mbps, fb0, fb1);
+    retime_60hz();
+    retro_tab5_display_wait_frame(100); /* let the new timing take effect */
+    s_refresh_hz = measure_refresh();
+    RLOGI(VIDEO, "display %dx%d, %u Mbps/lane, %.2f Hz measured, fb0 %p fb1 %p", RETRO_TAB5_PANEL_W,
+          RETRO_TAB5_PANEL_H, (unsigned)cfg.dsi_bus.lane_bit_rate_mbps, (double)s_refresh_hz, fb0,
+          fb1);
     return true;
+}
+
+float retro_tab5_display_refresh_hz(void)
+{
+    return s_refresh_hz;
+}
+
+int64_t retro_tab5_display_last_frame_us(void)
+{
+    return s_last_frame_us;
+}
+
+uint32_t retro_tab5_display_frame_period_us(void)
+{
+    return s_period_us;
 }
 
 uint16_t *retro_tab5_display_fb(int index)

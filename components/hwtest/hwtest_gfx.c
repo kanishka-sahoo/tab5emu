@@ -9,7 +9,7 @@
 #include "freertos/FreeRTOS.h"
 #include "sdkconfig.h"
 
-#include "font8x8_basic.h"
+#include "retro_font8x8.h"
 #include "hwtest_priv.h"
 
 #define NW RETRO_TAB5_PANEL_W

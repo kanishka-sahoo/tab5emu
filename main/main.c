@@ -2,9 +2,10 @@
  * Tab5 Retro Console: boot entry point.
  *
  * Phase 0: bring up logging and report the platform.
- * Phase 1: hand over to the hardware test (CONFIG_RETRO_HWTEST_BOOT). Later
- * phases add the boot sequence (display, SD, library, launcher) and mode
- * dispatch here.
+ * Phase 1: the hardware test (CONFIG_RETRO_HWTEST_BOOT).
+ * Phase 2: otherwise the pipeline test (synthetic core on the full
+ * frontend). Later phases add the boot sequence (display, SD, library,
+ * launcher) and mode dispatch here.
  */
 #include <inttypes.h>
 
@@ -17,6 +18,7 @@
 #include "esp_system.h"
 
 #include "hwtest.h"
+#include "pipeline_test.h"
 #include "retro_log.h"
 #include "sdkconfig.h"
 
@@ -70,5 +72,7 @@ void app_main(void)
     RLOGI(CORE, "boot complete");
 #if CONFIG_RETRO_HWTEST_BOOT
     hwtest_start();
+#else
+    pipeline_test_start();
 #endif
 }

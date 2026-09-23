@@ -1,0 +1,83 @@
+menu "Emulator frontend"
+
+    config RETRO_DEVMODE
+        bool "Developer mode (performance overlay, CPU load)"
+        default y
+        select FREERTOS_GENERATE_RUN_TIME_STATS
+        help
+            Performance overlay (spec §45) with per-core CPU load, which
+            needs FreeRTOS run-time statistics. Turned off for release
+            builds (plan Phase 8).
+
+    config RETRO_DEVMODE_OVERLAY_AT_BOOT
+        bool "Show the performance overlay at boot"
+        depends on RETRO_DEVMODE
+        default y
+
+    menu "Audio"
+        config RETRO_AUDIO_RATE
+            int "Output sample rate (Hz)"
+            default 48000
+
+        config RETRO_AUDIO_PERIOD_FRAMES
+            int "Frames per I2S DMA buffer"
+            range 64 1024
+            default 240
+
+        config RETRO_AUDIO_PERIODS
+            int "I2S DMA buffers"
+            range 2 16
+            default 4
+            help
+                DMA latency = buffers x frames. 4 x 240 at 48 kHz = 20 ms
+                (the BSP default was 6 x 240 = 30 ms).
+
+        config RETRO_AUDIO_LATENCY_MS
+            int "Ring buffer high-water mark (ms)"
+            range 10 100
+            default 24
+            help
+                The emulator blocks when the ring holds more than this
+                (plan D3). Total output latency is roughly this minus half a
+                frame of audio, plus the DMA queue: ~36 ms by default
+                (spec §15 target: < 40 ms).
+    endmenu
+
+    menu "Task layout (plan §3.2)"
+        config RETRO_TASK_EMU_CORE
+            int "Emulator task core"
+            range 0 1
+            default 0
+        config RETRO_TASK_EMU_PRIO
+            int "Emulator task priority"
+            default 20
+        config RETRO_TASK_AUDIO_CORE
+            int "audio_out task core"
+            range 0 1
+            default 1
+        config RETRO_TASK_AUDIO_PRIO
+            int "audio_out task priority"
+            default 22
+        config RETRO_TASK_VIDEO_CORE
+            int "video_out task core"
+            range 0 1
+            default 1
+        config RETRO_TASK_VIDEO_PRIO
+            int "video_out task priority"
+            default 18
+        config RETRO_TASK_INPUT_CORE
+            int "Input tasks core (touch, USB pads)"
+            range 0 1
+            default 1
+        config RETRO_TASK_INPUT_PRIO
+            int "Touch task priority"
+            default 18
+        config RETRO_TASK_USB_PRIO
+            int "USB pad client task priority"
+            default 15
+        config RETRO_TASK_MONITOR_PRIO
+            int "Statistics task priority"
+            default 4
+    endmenu
+
+endmenu

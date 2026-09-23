@@ -1,7 +1,7 @@
 # Tab5 Retro Console — Implementation Plan
 
 Source spec: [tab5-retroconsole.md](tab5-retroconsole.md) (v1.0)
-Status: Draft rev 2, 2026-09-23 (hardware findings and owner answers added: §2a, D2, D9, D11–D13)
+Status: Draft rev 3, 2026-09-23 (rev 2: hardware findings and owner answers, §2a, D2, D9, D11–D13; rev 3: Phase 2 findings, see the end of §6)
 Repository: `tab5emu/` (this repo is the spec's `tab5-retro/`)
 
 ---
@@ -212,6 +212,8 @@ A `hwtest` mode in main (it later becomes Recovery → "Test hardware") that exe
 
 **Exit:** a synthetic "core" (moving test pattern + tone) runs at 60 fps with 0 underruns for 30 min on device, with USB pad and touch both driving it.
 
+**Status:** implemented; measurements in [phase2-results.md](phase2-results.md). Additions to the list above: `retro_os.h` (tasks, locks, memory placement, CPU load) so the pipelines run unchanged on the host, and `retro_core.h` (the D5 core interface) as part of the frozen public ABI. The 60 Hz retime and the interrupt-driven touch read from the Phase 1 results are done.
+
 ### Phase 3: NES core (spec Milestone B, ≈2 weeks), R4, R6–R12
 
 - Import Nofrendo (referencing the existing ESP32-P4 port), strip its platform layer, write the `retro_core_t` adapter. Output RGB565 native fb; APU at its native rate → audio_engine.
@@ -336,7 +338,7 @@ A `hwtest` mode in main (it later becomes Recovery → "Test hardware") that exe
 
 **Still open** (Phase 1 measurements: [bringup-results.md](bringup-results.md))
 
-1. Target display refresh: **measured 57.5 Hz** on the ST7123 with the BSP's timings (48.2 Hz computed for the ILI9881C). That drops ~2.6 NES frames per second, far more than the "occasional" drop assumed here, so Phase 2 retimes the DPI output to 60 Hz and checks the panel accepts it.
+1. ~~Target display refresh~~ **Resolved in Phase 2:** the ST7123 measured 57.5 Hz with the BSP's timings; shortening the vertical front porch (220 → 165 lines) gives **59.96 Hz measured** and the panel accepts it. The ILI9881C (48.2 Hz computed) needs a faster pixel clock instead and keeps the BSP timing for now; no unit to test on.
 2. Default audio sample rate: 48 kHz (proposed) or 44.1 kHz.
 3. GPIO35 power-button experiment (§2a.1): the button and software power-off were confirmed on the device, but the GPIO35 edge log wasn't saved, so it's still unknown whether U28 warns the P4 before a double-press cut.
 
@@ -345,6 +347,14 @@ A `hwtest` mode in main (it later becomes Recovery → "Test hardware") that exe
 - D4: the PPA's 3× scale is bilinear (block centres exact, the rest blended), so Pixel Perfect stays on the CPU blit (10.9 ms/frame).
 - D6: FAT `rename()` fails when the target exists, so the atomic write is `unlink` + `rename`, and a leftover `.tmp` must be promoted on recovery.
 - D13: the IO-expander driver resets CHG_EN to low; `retro_tab5_board_init()` re-enables charging.
+
+**Phase 2 findings that change decisions** ([phase2-results.md](phase2-results.md))
+
+- D4: the CPU blit straight into the PSRAM frame buffer took ~15.5 ms per frame on the device with the emulator running (bound by cached PSRAM writes, which fill each line before writing it), too slow for 60 fps. Pixel Perfect now builds 24 native rows at a time in SRAM and a DMA engine copies each strip into the frame buffer while the CPU builds the next: GDMA memcpy for full-width strips (~10–12 ms per frame, 60 fps), the PPA at scale 1 for other widths. It stays nearest-neighbour. This was planned for Phase 7.
+- D6: an atomic write is `write .tmp → fsync → rename to .new → unlink target → rename .new`. A leftover `.new` is always complete and gets promoted; a leftover `.tmp` is always partial and gets deleted. That's stricter than "promote a leftover .tmp", which could promote a half-written first save.
+- D3: the DRC only slows playback when the emulator has stopped blocking on the ring. While it blocks, a low fill just reflects the time spent making a frame. Without this the DRC sat at about −1000 ppm.
+- §3.3: only ~355 KB of SRAM is free at boot with the 256 KB L2 cache, in several regions. Three 120 KB native frame buffers (the latest-frame-wins mailbox needs three) don't fit next to the blit strips, so they sit in PSRAM for now. Revisit the L2 cache size, or a paletted native format, before the SNES core needs SRAM (Phase 6).
+- The Tab5's audio output latency is ~36 ms (20 ms DMA + ~16 ms average ring), within the spec §15 target of < 40 ms. The host build needs a 40 ms ring under CoreAudio.
 
 ---
 

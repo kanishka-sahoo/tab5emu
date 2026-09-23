@@ -167,8 +167,9 @@ static void results_keep_previous(void)
 static void cmd_cat(const char *path)
 {
     char full[128];
-    snprintf(full, sizeof(full), "%s%s", path[0] == '/' && strncmp(path, RETRO_TAB5_SD_MOUNT, 7) != 0
-                                             ? RETRO_TAB5_SD_MOUNT : "", path);
+    const bool on_card = path[0] == '/' &&
+                         strncmp(path, RETRO_TAB5_SD_MOUNT, sizeof(RETRO_TAB5_SD_MOUNT) - 1) != 0;
+    snprintf(full, sizeof(full), "%s%s", on_card ? RETRO_TAB5_SD_MOUNT : "", path);
     FILE *f = fopen(full, "r");
     if (!f) {
         RLOGW(SD, "can't open %s", full);

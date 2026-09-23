@@ -28,6 +28,23 @@ menu "Retro HAL"
             Shunt on the INA226 battery monitor. M5Unified uses 5 mOhm for
             the Tab5.
 
+    config RETRO_TAB5_DISPLAY_60HZ
+        bool "Retime the Tab5 panel to 60 Hz"
+        default y
+        help
+            The BSP's ST7123/ST7121 timings refresh at 57.5 Hz (bring-up),
+            which drops ~2.6 frames a second of 60 Hz content. This shortens
+            the vertical front porch so the panel runs at 60.0 Hz. The
+            original ILI9881C panel keeps the BSP timing.
+
+    config RETRO_TAB5_TOUCH_I2C_KHZ
+        int "ST712x touch I2C clock (kHz)"
+        range 100 400
+        default 400
+        help
+            Clock for reading the ST7123/ST7121 touch controller directly.
+            Falls back to 100 kHz if the controller doesn't answer.
+
     choice RETRO_TAB5_LANDSCAPE
         prompt "Tab5 landscape orientation"
         default RETRO_TAB5_LANDSCAPE_CW

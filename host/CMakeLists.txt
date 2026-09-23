@@ -19,11 +19,14 @@ endif()
 
 set(REPO_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/..)
 
-add_subdirectory(${REPO_ROOT}/components/retro_common ${CMAKE_BINARY_DIR}/retro_common)
-add_subdirectory(${REPO_ROOT}/components/retro_hal ${CMAKE_BINARY_DIR}/retro_hal)
+foreach(c retro_common retro_hal video_pipeline audio_engine controller_manager emulator_manager
+          core_synth)
+    add_subdirectory(${REPO_ROOT}/components/${c} ${CMAKE_BINARY_DIR}/${c})
+endforeach()
 
 add_executable(tab5emu_host src/host_main.c)
-target_link_libraries(tab5emu_host PRIVATE retro_hal m)
+target_link_libraries(tab5emu_host PRIVATE emulator_manager core_synth video_pipeline audio_engine
+                      controller_manager retro_hal m)
 
 enable_testing()
 add_subdirectory(${REPO_ROOT}/test/host ${CMAKE_BINARY_DIR}/test)
