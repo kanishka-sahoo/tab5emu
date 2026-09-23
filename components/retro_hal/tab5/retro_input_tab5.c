@@ -6,6 +6,7 @@
 
 #include "retro_fb.h"
 #include "retro_input.h"
+#include "retro_log.h"
 #include "retro_tab5.h"
 
 /* Poll interval while the interrupt line hasn't been seen to work. */
@@ -47,6 +48,11 @@ int retro_touch_read(retro_touch_point_t *pts, int max)
 
 bool retro_touch_wait(uint32_t timeout_ms)
 {
+    static bool s_irq_logged;
+    if (!s_irq_logged && retro_tab5_touch_irqs() > 0) {
+        s_irq_logged = true;
+        RLOGI(INPUT, "touch interrupt seen; reads now follow it");
+    }
     if (retro_tab5_touch_irqs() > 0) {
         return retro_tab5_touch_wait(timeout_ms);
     }

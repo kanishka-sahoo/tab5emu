@@ -3,16 +3,16 @@
  * (audio engine, video pipeline, controller manager).
  *
  * Exit criterion (plan Phase 2): 60 fps with 0 underruns for 30 minutes,
- * driven by a USB pad and touch. Statistics are logged every 10 s.
+ * driven by touch (USB pads are deferred to v2). Statistics are logged every
+ * 10 s, and every change in the touched controls is logged.
  *
- * Controls: the Menu hotkey (Guide, the touch menu corner, or SELECT+START
- * held 1 s) cycles the display mode. Serial commands:
+ * Controls: the Menu hotkey (the touch menu corner, or SELECT+START held
+ * 1 s) cycles the display mode. Serial commands:
  *   mode <0-4>        Pixel Perfect, Original, 4:3, Fit, Stretch
  *   scan on|off       scanlines
  *   overlay on|off    performance overlay
  *   bright <0-100>    backlight
  *   vol <0-100>       volume
- *   rumble            rumble player 1 for half a second
  *   res <w> <h>       synthetic frame size (e.g. 256 224 for SNES geometry)
  *   stats             log the statistics now
  */
@@ -26,7 +26,6 @@
 #include "freertos/task.h"
 #include "sdkconfig.h"
 
-#include "controller_manager.h"
 #include "core_synth.h"
 #include "emulator_manager.h"
 #include "pipeline_test.h"
@@ -49,7 +48,7 @@ static void on_hotkey(uint32_t pressed, void *ctx)
         RLOGI(CORE, "display mode: %s", vp_mode_name(m));
     }
     if (pressed & RETRO_HOTKEY_POWER) {
-        RLOGI(CORE, "power hotkey (Guide held 3 s): shutdown comes in Phase 7");
+        RLOGI(CORE, "power hotkey: shutdown comes in Phase 7");
     }
 }
 
@@ -84,10 +83,6 @@ static void command(char *line)
         retro_video_set_brightness(atoi(arg));
     } else if (strcmp(line, "vol") == 0 && *arg) {
         retro_audio_set_volume(atoi(arg));
-    } else if (strcmp(line, "rumble") == 0) {
-        cm_rumble(0, 200, 200);
-        vTaskDelay(pdMS_TO_TICKS(500));
-        cm_rumble(0, 0, 0);
     } else if (strcmp(line, "res") == 0 && *arg) {
         unsigned w = 0, h = 0;
         if (sscanf(arg, "%u %u", &w, &h) != 2) {
@@ -98,7 +93,7 @@ static void command(char *line)
         emu_monitor_log();
     } else {
         RLOGI(CORE, "commands: mode <0-4>, scan on|off, overlay on|off, bright <n>, vol <n>, "
-                    "rumble, res <w> <h>, stats");
+                    "res <w> <h>, stats");
         return;
     }
     RLOGI(CORE, "ok: %s %s", line, arg);
@@ -143,6 +138,8 @@ static void serial_init(void)
 void pipeline_test_start(void)
 {
     serial_init();
+    /* Log each change in the touched controls, to check touch by eye. */
+    retro_log_set_level(RETRO_LOG_INPUT, RETRO_LOG_DEBUG);
     if (!retro_platform_init() || !retro_video_init()) {
         RLOGE(CORE, "display init failed");
         return;

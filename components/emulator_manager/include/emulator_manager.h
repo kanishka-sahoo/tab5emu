@@ -23,7 +23,7 @@ extern "C" {
 #endif
 
 /* Start the audio engine, video pipeline and controller manager (touch,
- * keyboard, USB pads) with the task layout of plan §3.2. max_w/max_h size
+ * keyboard; USB pads only with CONFIG_RETRO_USB_PADS, deferred to v2) with the task layout of plan §3.2. max_w/max_h size
  * the native frame buffers. Loads controller remaps from the SD card. */
 bool emu_frontend_start(unsigned max_w, unsigned max_h);
 void emu_frontend_stop(void);

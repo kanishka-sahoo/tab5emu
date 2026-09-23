@@ -8,6 +8,10 @@
 #include "sdkconfig.h"
 #endif
 
+#ifndef CONFIG_RETRO_USB_PADS
+#define CONFIG_RETRO_USB_PADS 0 /* deferred to v2 (plan D11) */
+#endif
+
 #ifndef CONFIG_RETRO_TASK_EMU_CORE
 #define CONFIG_RETRO_TASK_EMU_CORE 0
 #define CONFIG_RETRO_TASK_EMU_PRIO 20

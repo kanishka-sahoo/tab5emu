@@ -5,10 +5,10 @@
 #include <string.h>
 
 #include "audio_engine.h"
-#include "controller_manager.h"
 #include "emu_config.h"
 #include "emulator_manager.h"
 #include "retro_log.h"
+#include "retro_input.h"
 #include "retro_os.h"
 #include "retro_power.h"
 #include "retro_time.h"
@@ -58,11 +58,9 @@ static void tick(snap_t *prev, retro_power_status_t *pwr, bool read_power)
     emu_stats_t e;
     vp_stats_t v;
     audio_engine_stats_t a;
-    cm_stats_t c;
     emu_get_stats(&e);
     vp_get_stats(&v);
     audio_engine_get_stats(&a);
-    cm_get_stats(&c);
     int cpu[RETRO_MAX_CPUS];
     retro_cpu_load(cpu);
     retro_heap_info_t heap;
@@ -108,8 +106,8 @@ static void tick(snap_t *prev, retro_power_status_t *pwr, bool read_power)
                       (unsigned)a.underruns);
         n += snprintf(t + n, sizeof(t) - (size_t)n, "DRC %+d ppm  wait %.0f ms\n", (int)a.drc_ppm,
                       (double)a.push_wait_ms);
-        n += snprintf(t + n, sizeof(t) - (size_t)n, "pads %d  %s\n", c.pads,
-                      c.pads ? c.names[0] : "(touch)");
+        n += snprintf(t + n, sizeof(t) - (size_t)n, "touch %lu reads\n",
+                      (unsigned long)retro_touch_reports());
         if (pwr->valid && pwr->battery_present) {
             n += snprintf(t + n, sizeof(t) - (size_t)n, "batt %.2fV %dmA %d%%\n",
                           (double)pwr->battery_mv / 1000.0, (int)pwr->current_ma, pwr->percent);
@@ -122,11 +120,11 @@ static void tick(snap_t *prev, retro_power_status_t *pwr, bool read_power)
     retro_mutex_lock(s.lock);
     snprintf(s.line, sizeof(s.line),
              "emu %.2f fps, out %.2f fps, lcd %.2f Hz | frame max %.1f ms, blit %.1f/%.1f ms %s | "
-             "audio %.1f ms, xrun %u, drc %+d..%+d ppm | dropped %u | CPU %d/%d%% | SRAM %uK | pads %d",
+             "audio %.1f ms, xrun %u, drc %+d..%+d ppm | dropped %u | CPU %d/%d%% | SRAM %uK | touch %lu",
              (double)emu_fps, (double)out_fps, (double)hz, (double)s.run_max,
              (double)v.render_ms_avg, (double)s.render_max, v.path ? v.path : "-", (double)fill_ms,
              (unsigned)a.underruns, (int)s.ppm_min, (int)s.ppm_max, (unsigned)v.dropped, cpu[0],
-             cpu[1], (unsigned)(heap.internal_free >> 10), c.pads);
+             cpu[1], (unsigned)(heap.internal_free >> 10), (unsigned long)retro_touch_reports());
     retro_mutex_unlock(s.lock);
 }
 

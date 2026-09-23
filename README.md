@@ -28,7 +28,8 @@ components/
     host/              SDL2 / pthreads backend for the desktop build
   video_pipeline/      frame mailbox, display modes, scalers (CPU, DMA strips, PPA), video_out task
   audio_engine/        SPSC ring, DRC resampler, audio_out task
-  controller_manager/  input sources -> 4 players, mapping DB, touch zones, Xbox pad driver
+  controller_manager/  input sources -> 4 players, mapping DB, touch zones; Xbox pad driver
+                       (built but off: USB controllers are v2, plan D14)
   emulator_manager/    frontend bring-up, frame loop, statistics / performance overlay
   core_synth/          synthetic test core (Phase 2 exit test)
   hwtest/              Phase 1 hardware test mode (later Recovery -> "Test hardware")
@@ -85,18 +86,24 @@ every button, MENU/POWER hotkey lamps, the frame counter, a 1-pixel checkerboard
 It ticks at 880 Hz every emulated second; holding A or B plays a tone (left / right channel). The
 performance overlay (spec §45) sits in the right-hand border.
 
-Input: an Xbox pad on USB-A (360 or One/Series, wired), the touch screen, or both. Touch zones
-(until the Phase 3 overlay draws them): D-pad centred at (128, 440) in the left border, A/B/X/Y
-around (1110, 440) in the right border, SELECT/START along the bottom right, L/R in the top corners,
-MENU in the top-right corner. MENU (Guide, the corner zone, or SELECT+START held 1 s) cycles the
-display mode. Guide held 3 s lights POWER (the shutdown itself is Phase 7).
+Input is the touch screen (v1 has no USB controllers; see below). Touch zones (until the Phase 3
+overlay draws them): D-pad centred at (128, 440) in the left border, A/B/X/Y around (1110, 440) in
+the right border, SELECT/START along the bottom right, L/R in the top corners, MENU in the top-right
+corner. MENU (the corner zone, or SELECT+START held 1 s) cycles the display mode; holding the MENU
+zone 3 s lights POWER (the shutdown itself is Phase 7). Every change in the touched controls is
+logged, and the summary line counts touch reads.
 
 A summary line is logged every 10 s. Serial commands: `mode <0-4>` (Pixel Perfect, Original, 4:3,
-Fit, Stretch), `scan on|off`, `overlay on|off`, `bright <0-100>`, `vol <0-100>`, `rumble`, `stats`.
+Fit, Stretch), `scan on|off`, `overlay on|off`, `bright <0-100>`, `vol <0-100>`,
+`res <w> <h>` (synthetic frame size, e.g. `res 256 224` for SNES geometry), `stats`.
 
-Controller remaps are read from `/retro/config/controllers.json` on the SD card, keyed by
-`vid:pid` (see `components/controller_manager/cm_mapping.c` for the format). The default mapping is
-by position: Xbox B is Nintendo A, A is B, Y is X, X is Y.
+### USB controllers (v2)
+
+USB controllers are deferred to v2 (plan D14; spec R11/R12). The USB-A port is unused in v1 and its
+5 V rail is switched off at boot. The Xbox 360 / One / Series driver (`xinput_host.c`, plan D11), the
+positional default mapping (Xbox B is Nintendo A) and per-`vid:pid` remaps in
+`/retro/config/controllers.json` stay in the tree, unit tested, and are switched on with
+`CONFIG_RETRO_USB_PADS` (Controller manager menu) for v2 work.
 
 ## Hardware test mode
 
@@ -108,7 +115,7 @@ also saved to `/retro/hwtest/results.md` on the SD card after every command, and
 previous file as `results-N.md`, so results from a session on battery survive the reset caused by
 opening the serial port. `cat <path>` prints a saved file.
 
-Interactive checks (touch, headphones, Xbox pads, power button, power-off, light sleep) need someone
+Interactive checks (touch, headphones, Xbox pads (v2), power button, power-off, light sleep) need someone
 at the device; [plan/bringup-results.md](plan/bringup-results.md) lists the remaining ones and how to run them.
 
 Opening the USB serial port resets the board. Output printed during light sleep only appears after

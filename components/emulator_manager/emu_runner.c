@@ -10,6 +10,7 @@
 #include "emulator_manager.h"
 #include "retro_log.h"
 #include "retro_os.h"
+#include "retro_power.h"
 #include "retro_storage.h"
 #include "retro_time.h"
 #include "video_pipeline.h"
@@ -58,7 +59,13 @@ bool emu_frontend_start(unsigned max_w, unsigned max_h)
     }
     cm_keys_source_start();
     cm_touch_source_start(CONFIG_RETRO_TASK_INPUT_CORE, CONFIG_RETRO_TASK_INPUT_PRIO);
+#if CONFIG_RETRO_USB_PADS
     cm_xinput_start(CONFIG_RETRO_TASK_INPUT_CORE, CONFIG_RETRO_TASK_USB_PRIO);
+#else
+    /* USB pads are deferred to v2 (plan D11, D14); v1 input is touch only,
+     * so USB-A 5 V stays off. */
+    retro_power_rail_set(RETRO_RAIL_USB_HOST, false);
+#endif
     return true;
 }
 

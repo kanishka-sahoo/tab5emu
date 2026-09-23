@@ -66,14 +66,15 @@ menu "Emulator frontend"
             int "video_out task priority"
             default 18
         config RETRO_TASK_INPUT_CORE
-            int "Input tasks core (touch, USB pads)"
+            int "Input tasks core (touch; USB pads in v2)"
             range 0 1
             default 1
         config RETRO_TASK_INPUT_PRIO
             int "Touch task priority"
             default 18
         config RETRO_TASK_USB_PRIO
-            int "USB pad client task priority"
+            int "USB pad client task priority (v2)"
+            depends on RETRO_USB_PADS
             default 15
         config RETRO_TASK_MONITOR_PRIO
             int "Statistics task priority"

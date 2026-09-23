@@ -84,6 +84,7 @@ static void touch_task(void *arg)
         }
         down = n > 0;
         if (st.buttons != last) {
+            RLOGD(INPUT, "touch: %d point(s), controls 0x%05lx", n, (unsigned long)st.buttons);
             last = st.buttons;
             cm_device_update(s_touch_id, &st);
         }

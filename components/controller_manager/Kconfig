@@ -1,0 +1,12 @@
+menu "Controller manager"
+
+    config RETRO_USB_PADS
+        bool "USB Xbox pads (deferred to v2)"
+        default n
+        help
+            Start the USB host on USB-A and the xinput_host class driver for
+            wired Xbox 360 / One / Series pads (plan D11). USB controllers
+            are deferred to v2; v1 input is the touch screen only. The
+            driver is kept building so v2 can switch it on.
+
+endmenu

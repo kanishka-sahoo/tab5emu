@@ -11,13 +11,15 @@ pad).
 ## Exit criterion
 
 > A synthetic "core" (moving test pattern + tone) runs at 60 fps with 0 underruns for 30 min on
-> device, with USB pad and touch both driving it.
+> device, with touch driving it.
+
+(Originally "with USB pad and touch both driving it"; USB controllers moved to v2 by plan D14.)
 
 | Part | Result |
 |---|---|
 | 60 fps, 30 min | **Complete (owner's call)**: stopped after 7.4 min of logging (44 samples) at the owner's request; every sample showed output at the panel rate (59.9 fps) with only the expected drops |
 | 0 underruns, 30 min | **Complete (owner's call)**: 0 underruns in all 44 samples; DRC stayed at 0 ppm |
-| USB pad driving it | **needs a person**: the driver is in place (Phase 1 confirmed enumeration, reports and hot-plug on this unit); not yet run with the Phase 2 firmware |
+| USB pad driving it | **Deferred to v2** (plan D14). The driver is built and unit tested but off (`CONFIG_RETRO_USB_PADS`); USB-A 5 V is off at boot |
 | Touch driving it | **needs a person**: interrupt-driven read in place; not yet touched on this firmware |
 
 ## Measurements
@@ -98,17 +100,21 @@ pad).
 - Crash-safe writes follow D6 as revised: `.tmp` → fsync → rename to `.new` → unlink → rename. All
   recovery cases are covered by host tests; on-device battery-pull testing is Phase 5.
 
-### Input mapping (host)
+### Input mapping (host; USB parts are v2)
 
 - Default mapping is by position (Xbox B → A, A → B, Y → X, X → Y), with the left stick also
   driving the D-pad (hysteresis 50 % on / 37 % off). Guide → MENU; Guide held 3 s → POWER;
   SELECT+START held 1 s → MENU. Per-VID:PID remaps load from `/retro/config/controllers.json`.
 - XInput and GIP parsers are unit tested with synthetic reports built from the protocol layout;
   no captured reports from real pads yet (Phase 1 didn't save any). `usb` in hwtest writes
-  them to `/retro/hwtest/usb_reports.txt`.
+  them to `/retro/hwtest/usb_reports.txt`. All of this waits for v2 (plan D14).
+- v1 input is touch only: the touch zones map to the same positional controls, so MENU comes from
+  the top-right corner zone (held 3 s: POWER) or SELECT+START held 1 s.
 
 ## Still to do for the exit criterion
 
-1. With a pad plugged in and the screen being touched, check the `pads` field, the button
-   indicators and the log (no xruns, no drops beyond the expected).
-2. Capture real Xbox 360 and One/Series reports (hwtest `usb`) and add them to the parser tests.
+1. Touch the D-pad and button zones and check the button indicators and the log: a
+   `touch: … controls` line per change, `touch interrupt seen` once, the `touch` read count
+   rising, and still no xruns or drops beyond the expected.
+
+For v2: capture real Xbox 360 and One/Series reports (hwtest `usb`) for the parser tests.
