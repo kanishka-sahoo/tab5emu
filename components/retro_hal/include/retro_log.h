@@ -1,5 +1,5 @@
 /*
- * RetroHAL logging (spec §46).
+ * RetroHAL logging (spec §46). FROZEN (plan Phase 2).
  *
  * Every line goes to the console (USB-Serial-JTAG on the Tab5, stderr on the
  * host) and to an in-RAM ring buffer that recovery mode can display. Extra

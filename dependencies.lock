@@ -415,6 +415,6 @@ direct_dependencies:
 - espressif/m5stack_tab5
 - espressif/usb
 - idf
-manifest_hash: e194e3028f14a624cf5f3b0e5c4fc65a6ffe76ee7c19c1c66747197f8a8671c2
+manifest_hash: 0c7b74a579d5650373f6fc2d7288762df6d07fa0af6a25b57df3a32836408faf
 target: esp32p4
 version: 2.0.0

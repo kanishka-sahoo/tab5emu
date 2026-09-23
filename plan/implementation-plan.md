@@ -1,14 +1,14 @@
 # Tab5 Retro Console — Implementation Plan
 
 Source spec: [tab5-retroconsole.md](tab5-retroconsole.md) (v1.0)
-Status: Draft rev 2, 2026-09-23 (hardware findings and owner answers added: §2a, D2, D9, D11–D13)
+Status: Draft rev 4, 2026-09-23 (rev 2: hardware findings and owner answers, §2a, D2, D9, D11–D13; rev 3: Phase 2 findings, see the end of §6; rev 4: USB controllers deferred to v2, D14)
 Repository: `tab5emu/` (this repo is the spec's `tab5-retro/`)
 
 ---
 
 ## 1. Goal and scope
 
-Ship **Release 1**: the 20 requirements in spec §58. That means NES + standard LoROM/HiROM SNES on bare ESP-IDF, with a launcher, microSD library, touch and wired Xbox controller input (D11), SRAM saves and save states, screenshots, battery display, brightness control, headphone detection, the C6 powered down, and a clean shutdown.
+Ship **Release 1**: the requirements in spec §58, less R11 and R12 (USB controllers, deferred to v2 by D14). That means NES + standard LoROM/HiROM SNES on bare ESP-IDF, with a launcher, microSD library, touch input, SRAM saves and save states, screenshots, battery display, brightness control, headphone detection, the C6 powered down, and a clean shutdown.
 
 Everything in spec §57 ("deliberately excluded") stays out of v1. Where the spec wants future extensibility (4-player input ABI, logical volumes, network transport abstraction, peripheral registration), v1 **defines the interface and ships one implementation**. Speculative drivers don't get built.
 
@@ -32,9 +32,10 @@ These fill gaps in the spec or adjust it. Each needs sign-off before Phase 2.
 | D8 | **Host (desktop) build** of cores + frontend logic, with an SDL2 HAL backend. Built with plain CMake next to the IDF build. | Core bring-up, save-state format, library scanning and launcher logic can then be debugged and unit-tested without flashing. It also makes regression tests with test ROMs possible in CI. This does not replace on-device perf testing. |
 | D9 | **Recovery mode lives inside the main app.** There is no separate factory partition. It has three triggers; see §2a.3 for how they were chosen. (1) **Touch-hold**: two fingers held on the screen while the boot splash is up (~1.5 s window). (2) **Boot-loop guard**: a counter in NVS is incremented at boot and cleared once the launcher is ready. After 3 failed boots in a row the device enters recovery automatically. (3) **SD trigger file**: `/retro/recovery`. **No Wi-Fi OTA in v1.** `app0`/`app1` are kept anyway, so recovery can do a rollback-safe **firmware update from SD** (`/retro/update.bin` → `esp_ota_*` → reboot, with IDF app rollback). | The Tab5 has no user button that the app can read at boot (§2a.3). Touch works on every panel revision through the BSP. ROM download mode stays independent of the app: hold the reset button for about 2 s, and the power-management MCU drives GPIO35 (spec §35). |
 | D10 | **SNES core source**: evaluate the RetroESP32-P4 SNES core (Snes9x-derived) first. **Licensing note:** Snes9x's licence prohibits commercial use and Nofrendo is GPLv2, so the firmware as a whole inherits GPL + a non-commercial restriction. Record this in README/LICENSE. **Decided:** personal / open-source distribution, so the Snes9x-based core is acceptable. | Avoids a licensing surprise late in the project. |
-| D11 | **Xbox controllers are the v1 physical controller; PlayStation support is deferred.** Xbox pads are **not USB HID**: they use vendor-specific interfaces, so `usb_host_hid` can't drive them. v1 ships a custom `xinput_host` class driver built on the ESP-IDF USB Host Library client API. It supports **Xbox 360 XInput** (interface class `0xFF/0x5D/0x01`, 20-byte input report) and **Xbox One / Series GIP** (interface `0xFF/0x47/0xD0`, which needs the power-on packet `05 20 00 01 00` before any reports arrive). Devices are matched by interface class, not a VID/PID list, so licensed third-party pads and 8BitDo-in-X-input also work. Wired USB only. Generic HID pads are deferred to v2 along with PlayStation. No specific test pads are fixed yet, so both protocols get built; GIP (One/Series) is tested first because it's the more common current pad. | Answer to Q3. The protocol references are Linux `xpad.c` (protocol reference only, because it's GPL) and TinyUSB's `tusb_xinput` (MIT). Matching on interface class means we don't maintain a PID table. |
-| D12 | **Shutdown design** (full detail in §2a.1). The power button is handled entirely by a small power-management MCU, and **double-press cuts power without telling the P4**. So: (a) **every save path must survive a hard power cut** (D6, plus SRAM flushed ~2 s after the last cartridge-RAM write instead of on a 30 s timer); (b) a **software "Power off"** in the launcher, the in-game menu and on a hold-Guide-3 s hotkey runs the spec §51 sequence, then asks the MCU to cut power by toggling `PWROFF_PLUSE` (IO expander 0x44 pin 4) 10× at 50 ms, the same method M5Unified uses; (c) **low battery** (INA226 threshold with hysteresis) triggers the same graceful path. | Answer to Q1. With only the hardware button, a graceful shutdown is impossible, so correctness can't depend on one. |
+| D11 | **Deferred to v2 (D14).** Kept as the v2 design. **Xbox controllers are the first physical controller; PlayStation support comes after.** Xbox pads are **not USB HID**: they use vendor-specific interfaces, so `usb_host_hid` can't drive them. v2 ships a custom `xinput_host` class driver built on the ESP-IDF USB Host Library client API. It supports **Xbox 360 XInput** (interface class `0xFF/0x5D/0x01`, 20-byte input report) and **Xbox One / Series GIP** (interface `0xFF/0x47/0xD0`, which needs the power-on packet `05 20 00 01 00` before any reports arrive). Devices are matched by interface class, not a VID/PID list, so licensed third-party pads and 8BitDo-in-X-input also work. Wired USB only. Generic HID pads and PlayStation come after it. No specific test pads are fixed yet, so both protocols get built; GIP (One/Series) is tested first because it's the more common current pad. | Answer to Q3. The protocol references are Linux `xpad.c` (protocol reference only, because it's GPL) and TinyUSB's `tusb_xinput` (MIT). Matching on interface class means we don't maintain a PID table. |
+| D12 | **Shutdown design** (full detail in §2a.1). The power button is handled entirely by a small power-management MCU, and **double-press cuts power without telling the P4**. So: (a) **every save path must survive a hard power cut** (D6, plus SRAM flushed ~2 s after the last cartridge-RAM write instead of on a 30 s timer); (b) a **software "Power off"** in the launcher and the in-game menu (plus a hold-Guide-3 s hotkey once pads arrive in v2) runs the spec §51 sequence, then asks the MCU to cut power by toggling `PWROFF_PLUSE` (IO expander 0x44 pin 4) 10× at 50 ms, the same method M5Unified uses; (c) **low battery** (INA226 threshold with hysteresis) triggers the same graceful path. | Answer to Q1. With only the hardware button, a graceful shutdown is impossible, so correctness can't depend on one. |
 | D13 | **Charging needs the device to be awake.** Per M5Stack's docs, the IP2326 charge IC only charges while the Tab5 is powered on and initialised, so "Power off" while USB-C power is connected would stop charging. **Decided:** when external power is present, "Power off" enters a **charge mode** instead of cutting power: display, emulator and C6 off, `CHG_EN` on, P4 in light sleep, battery % shown on a single tap. | Otherwise a user who powers off to charge gets a device that never charges. |
+| D14 | **v1 input is touch only; USB controllers (D11, spec R11 and R12) move to v2.** The USB host is not started in v1 and USB-A 5 V is switched off at boot. The `xinput_host` driver written in Phase 2 stays in the tree behind `CONFIG_RETRO_USB_PADS` (default off); the input ABI already has four players, so v2 adds sources without changing cores. | Owner decision (2026-09-23): get touch done first. It removes the USB host daemon and client task from CPU1, and the USB-A rail from the power budget. |
 
 ---
 
@@ -127,8 +128,8 @@ Dependency rule, enforced through CMake `REQUIRES`: `core_*` depends **only** on
 | `emu` | CPU0 | high (e.g. 20) | Loop per frame: poll input → `run_frame` → push audio (may block at the ring high-water mark) → publish fb to the mailbox. Pinned. Nothing else runs on CPU0 during gameplay. |
 | `audio_out` | CPU1 | highest on CPU1 (22) | Pulls from the ring, resamples (DRC), `i2s_channel_write`. On underrun it writes silence and counts the event. |
 | `video_out` | CPU1 | 18 | Takes the latest fb from the mailbox → scale + rotate into the back display buffer → flip on vsync. Drops frames when it's behind. |
-| `input` | CPU1 | 18 | `xinput_host` USB client (interrupt IN at the pad's 4–8 ms interval) + touch poll (≥ 250 Hz) → atomic `retro_input_state_t` snapshot. |
-| `usb_host` | CPU1 | 15 | IDF USB host library daemon. |
+| `input` | CPU1 | 18 | Touch, read on the controller's interrupt (Phase 2 finding: polling at 250 Hz would saturate the I2C bus) → controller manager → `retro_input_state_t` snapshot. |
+| `usb_host` | CPU1 | 15 | v2 only (D14): IDF USB host library daemon + `xinput_host` client. |
 | `storage_io` | CPU1 | 8 | Deferred SRAM flushes, screenshot encode + write, index updates. |
 | `lvgl` | CPU1 | 5 | Launcher only. Suspended (not deleted) during gameplay. |
 | `power` | CPU1 | 4 | INA226 sampling at 1 Hz, rail control, shutdown handling. |
@@ -204,40 +205,42 @@ A `hwtest` mode in main (it later becomes Recovery → "Test hardware") that exe
 - **Input ABI**: `retro_pad_state_t` per spec §17 (as a bitfield plus the named-bool accessor), `retro_input_state_t { pads[4]; axes[4][4]; hotkeys; }`. Four players from day one (§44). Generic axes are there for the IMU later (§23).
 - **video_pipeline**: fb mailbox, CPU NN 3× rotate-blit (optimized), PPA path, display modes Pixel Perfect / Original / 4:3 / Fit / Stretch (§10). Scanline overlay is a cheap alternate-row darken applied in the blit. Border clear only on a mode change.
 - **audio_engine**: SPSC lock-free ring, DRC resampler (linear or cubic from the core's native rate to 48 kHz), underrun counter, `retro_audio_*` API. The codec stays shareable: no exclusive claim (§16).
-- **controller_manager**: source registry (`TouchInput`, `XInputSource`; later `USBHIDInput`, `PSInput`, `KeyboardInput`), player assignment in connect order (§43), and a remap table stored per VID:PID in `/retro/config/controllers.json`.
-  - **`xinput_host` driver** (D11): a USB Host Library client. It handles NEW_DEV/DEV_GONE events and claims the vendor interface. It parses XInput (360) and GIP (One/Series) reports, including the GIP Guide-button report (`0x07`), acks any GIP message that asks for one, and sets the player LED on 360 pads. Rumble goes out as a stub (the haptic hook, spec §22).
-  - **Default mapping is by position, not label**: Xbox B→Nintendo A, A→B, Y→X, X→Y; LB/RB→L/R; View→Select; Menu→Start; left stick → D-pad (toggle in settings). **Guide button → in-game menu.**
+- **controller_manager**: source registry (`TouchInput`; `XInputSource` built but off in v1, D14; later `USBHIDInput`, `PSInput`, `KeyboardInput`), player assignment in connect order (§43), and a remap table stored per VID:PID in `/retro/config/controllers.json`.
+  - **`xinput_host` driver** (D11; built, disabled in v1 by D14): a USB Host Library client. It handles NEW_DEV/DEV_GONE events and claims the vendor interface. It parses XInput (360) and GIP (One/Series) reports, including the GIP Guide-button report (`0x07`), acks any GIP message that asks for one, and sets the player LED on 360 pads. Rumble goes out as a stub (the haptic hook, spec §22).
+  - **Default mapping is by position, not label** (for pads, so v2; the touch zones map straight to Nintendo buttons): Xbox B→Nintendo A, A→B, Y→X, X→Y; LB/RB→L/R; View→Select; Menu→Start; left stick → D-pad (toggle in settings). **Guide button → in-game menu.**
 - **storage**: logical volume table (`/storage/sd` in v1; §20), `retro_storage_*` wrappers, atomic write helper (D6).
 - **Performance overlay** (§45): compiled in behind `CONFIG_RETRO_DEVMODE`. Shows FPS (emulated and rendered), frame time, per-core CPU %, heap by caps, audio fill and underruns, PPA/blit time, battery V/W.
 
-**Exit:** a synthetic "core" (moving test pattern + tone) runs at 60 fps with 0 underruns for 30 min on device, with USB pad and touch both driving it.
+**Exit:** a synthetic "core" (moving test pattern + tone) runs at 60 fps with 0 underruns for 30 min on device, with touch driving it (USB pads dropped from this criterion by D14).
 
-### Phase 3: NES core (spec Milestone B, ≈2 weeks), R4, R6–R12
+**Status:** implemented; measurements in [phase2-results.md](phase2-results.md). Additions to the list above: `retro_os.h` (tasks, locks, memory placement, CPU load) so the pipelines run unchanged on the host, and `retro_core.h` (the D5 core interface) as part of the frozen public ABI. The 60 Hz retime and the interrupt-driven touch read from the Phase 1 results are done.
+
+### Phase 3: NES core (spec Milestone B, ≈2 weeks), R4, R6–R10
 
 - Import Nofrendo (referencing the existing ESP32-P4 port), strip its platform layer, write the `retro_core_t` adapter. Output RGB565 native fb; APU at its native rate → audio_engine.
 - Place hot state and the palette LUT in internal SRAM (IRAM/DRAM attributes where they help).
-- **Touch overlay** (§22): default NES layout, multitouch hit-testing, drawn into the game-region-adjacent border (the 256 px side bars are exactly where the controls go, so no blending over gameplay). Hidden automatically while a USB pad is active.
+- **Touch overlay** (§22): default NES layout, multitouch hit-testing, drawn into the game-region-adjacent border (the 256 px side bars are exactly where the controls go, so no blending over gameplay). (Hiding it while a USB pad is active comes with pads in v2.)
 - Temporary hard-coded ROM path boot for testing.
 - Correctness: run `nestest`, blargg CPU/PPU/APU tests on the host build; record results.
 
-**Exit:** at least 10 common titles (SMB, Zelda, Metroid, MM2, SMB3, Kirby, Contra, Castlevania, Punch-Out, Tetris) at 100% speed, 0 underruns in 20-minute sessions, input latency measured < 2 frames (LED/photodiode or high-speed video), USB hot-plug mid-game works.
+**Exit:** at least 10 common titles (SMB, Zelda, Metroid, MM2, SMB3, Kirby, Contra, Castlevania, Punch-Out, Tetris) at 100% speed, 0 underruns in 20-minute sessions, touch input latency measured < 2 frames (LED/photodiode or high-speed video).
 
 ### Phase 4: Launcher and library (spec Milestone C, ≈2–3 weeks), R1–R3, R16, R17
 
 - **rom_library**: scan `/retro/roms/{nes,snes}` for `.nes`, `.sfc`, `.smc` (strip the 512-byte copier header when detecting/checksumming `.smc`). Binary index at `/retro/metadata/library.idx`, rescanned only when a directory mtime changes or the user asks (§49). CRC32 is computed lazily in `storage_io` and cached in the index. SHA-1 is optional, for metadata.
 - Auto-create the `/retro` directory tree on first boot (§13).
 - **launcher** (LVGL via `esp_lvgl_port`): system tabs, list + grid view, favourites, recently played, last played, A–Z sort, search (on-screen keyboard), play-time tracking (§12). Battery %, Wi-Fi state and a clock in the status bar.
-- **Settings**: display mode, scanlines, brightness, volume, audio output, touch overlay size/opacity/positions per system, controller remap (§18: the "press each button" wizard is only needed for unknown pads, so it's deferred along with generic HID), boot behaviour (§50), power profile, dev mode.
+- **Settings**: display mode, scanlines, brightness, volume, audio output, touch overlay size/opacity/positions per system, boot behaviour (§50), power profile, dev mode.
 - **LVGL ↔ game handoff**: suspend the LVGL task and release the display fb before the game starts; restore on exit without rebuilding the screens (§47).
 - Fast boot path: display init → SD mount → load index → launcher. Measure it.
 
-**Exit:** cold boot to a usable library in < 5 s with 500 ROMs; game launch < 2 s; a controller remap persists per VID:PID.
+**Exit:** cold boot to a usable library in < 5 s with 500 ROMs; game launch < 2 s.
 
 ### Phase 5: Persistence (spec Milestone D, ≈2 weeks), R13–R15
 
 - **SRAM**: detect the battery-save flag per core, write to `/retro/saves/<sys>/<rom>.srm` using the D6 policy.
 - **Save states** (§14): container = header `{magic "T5RS", fmt_version, core_id, core_state_version, rom_crc32, rtc_timestamp, thumb_w, thumb_h, thumb_fmt}` + thumbnail (160×120 JPEG via the HW encoder, or raw RGB565 fallback) + core blob + trailing CRC32. Quick slot + slots 1–5. Loading rejects a mismatch in core ID, state version or ROM CRC with a clear message.
-- **In-game menu** (§47): opened by a configurable combo (default: Xbox **Guide** button; fallback SELECT+START held 1 s; a touch "menu" button in the overlay). Emulation is paused, the core stays resident, and the menu draws through the video pipeline overlay (not a full LVGL rebuild).
+- **In-game menu** (§47): opened by the touch "menu" button in the overlay, or SELECT+START held 1 s (the Xbox Guide button joins in v2). Emulation is paused, the core stays resident, and the menu draws through the video pipeline overlay (not a full LVGL rebuild).
 - **Screenshots** (§31): SELECT+R → copy the native fb → HW JPEG encode in `storage_io` → `/retro/screenshots/<rom>_<rtc>.jpg`. It must not stall `emu`.
 - Recents / last played / play-time persisted through the library index.
 
@@ -256,9 +259,9 @@ A `hwtest` mode in main (it later becomes Recovery → "Test hardware") that exe
 ### Phase 7: Optimisation and power (spec Milestone F, ≈2 weeks), R18–R20
 
 - Finalise the blit/PPA choice per mode from Phase 1/6 data; 2D-DMA for row duplication if it measures faster.
-- **Power gating** (§27): USB-A 5 V off when no controller is attached and the user enables "power saving"; the C6 off whenever Wi-Fi is disabled (the default in v1); EXT 5 V off; speaker amp off when headphones are detected (R18, R19).
+- **Power gating** (§27): USB-A 5 V off (always in v1, D14); the C6 off whenever Wi-Fi is disabled (the default in v1); EXT 5 V off; speaker amp off when headphones are detected (R18, R19).
 - Performance / Balanced / Battery Saver profiles (§26). Emulator clocks are never scaled during gameplay.
-- **Graceful shutdown** (§51): the exact ordered sequence from the spec, wired to the software "Power off" (launcher, in-game menu, hold Guide 3 s) and to low battery (INA226 threshold with hysteresis). It ends with the `PWROFF_PLUSE` train, or with charge mode when external power is present (D13). Target is < 2 s from request to power-off (R20). Hard-cut safety (D12): SRAM is flushed ~2 s after the last cartridge-RAM write, and nothing else writes to SD during gameplay.
+- **Graceful shutdown** (§51): the exact ordered sequence from the spec, wired to the software "Power off" (launcher, in-game menu) and to low battery (INA226 threshold with hysteresis). It ends with the `PWROFF_PLUSE` train, or with charge mode when external power is present (D13). Target is < 2 s from request to power-off (R20). Hard-cut safety (D12): SRAM is flushed ~2 s after the last cartridge-RAM write, and nothing else writes to SD during gameplay.
 - Boot behaviour: Launcher / Last game / Last game + autosave state (§50). Optional suspend-in-PSRAM on return to launcher (§48).
 - Battery runtime benchmark (NES and SNES loops at 50% brightness), results recorded.
 
@@ -269,8 +272,8 @@ A `hwtest` mode in main (it later becomes Recovery → "Test hardware") that exe
 - Recovery mode (D9, §35): boot firmware, reset settings, hardware test (Phase 1 hwtest), mount SD, view the in-RAM/SD log, firmware update from `/retro/update.bin` on SD.
 - **No Wi-Fi OTA in v1** (owner decision). Firmware updates are USB flashing or `/retro/update.bin` from recovery (D9). Image signature verification for the SD path is nice to have.
 - Log levels set for production; dev overlay compiled out by default (§45).
-- 8-hour soak test: attract-mode loop across NES/SNES titles, launcher cycling, hot-plug, shutdown/boot cycling.
-- README: SD layout, supported controllers, compatibility lists, licensing (D10), flashing instructions.
+- 8-hour soak test: attract-mode loop across NES/SNES titles, launcher cycling, shutdown/boot cycling.
+- README: SD layout, touch controls, compatibility lists, licensing (D10), flashing instructions.
 
 **Exit:** the §58 checklist is signed off against the traceability matrix (§5 below); the release is tagged.
 
@@ -279,7 +282,7 @@ A `hwtest` mode in main (it later becomes Recovery → "Test hardware") that exe
 - `retro_peripheral_register()` with capability flags (§37), separate GPIO/UART/I²C extension interfaces (§38).
 - Tab5 Keyboard input source over I²C (GPIO0/1/50) (§36); IMU axes source (§23).
 - USB MSC volumes (§20), multi-pad through a hub (§19), `NetworkManager` with a Wi-Fi transport (§28/§42), metadata fetch (§33).
-- **v2 input**: PlayStation controllers (DS4/DualSense are HID: `usb_host_hid` + report parser), generic HID gamepads + the first-connect mapping wizard (§18).
+- **v2 input**: wired Xbox 360 / One / Series pads (D11; the Phase 2 `xinput_host` driver, enabled with `CONFIG_RETRO_USB_PADS`, plus hot-plug mid-game, per-VID:PID remaps in the settings and the Guide hotkeys), PlayStation controllers (DS4/DualSense are HID: `usb_host_hid` + report parser), generic HID gamepads + the first-connect mapping wizard (§18).
 - Wi-Fi OTA with signed images (§34/§52).
 - Phase 2+ cores (§56), which should only need a new `core_*` component.
 
@@ -299,8 +302,8 @@ A `hwtest` mode in main (it later becomes Recovery → "Test hardware") that exe
 | 8 | Render via MIPI-DSI | 1, 2 | — |
 | 9 | Pixel-perfect scaling | 2 | visual check, screenshot diff |
 | 10 | Touchscreen | 3 | multitouch in-game |
-| 11 | USB controller (**Xbox**, D11; amended from "HID") | 1, 3 | Xbox 360 + Xbox Series pads, wired |
-| 12 | Hot-plug controllers | 3 | plug/unplug mid-game |
+| 11 | USB controller (**Xbox**, D11; amended from "HID") | **v2 (D14)** | Xbox 360 + Xbox Series pads, wired |
+| 12 | Hot-plug controllers | **v2 (D14)** | plug/unplug mid-game |
 | 13 | Save cartridge SRAM | 5 | battery-pull test |
 | 14 | Save/load states | 5 | round-trip test |
 | 15 | Screenshots | 5 | no emu stall (perf overlay) |
@@ -323,20 +326,20 @@ A `hwtest` mode in main (it later becomes Recovery → "Test hardware") that exe
 | Mandatory 90° rotation slows the CPU blit (column-order writes are cache-unfriendly) | Pixel Perfect cost | Tile-based rotate-blit (e.g. 8×8 source tiles), or PPA rotation if integer scaling is sharp. |
 | BSP API churn between versions | Build breaks | Pinned versions (D1); wrap all BSP calls in `retro_hal/tab5`. |
 | Hardware double-press cuts power with no warning (§2a.1) | R20 | D12: atomic writes, SRAM flushed ~2 s after the last write, software power-off path. The worst case loses the last ~2 s of in-game saving. |
-| Xbox GIP quirks (firmware-dependent init, Series controllers needing extra handshakes) | R11 | Test several controller firmwares early (Phase 1); follow the `xpad.c` init sequences. |
+| Xbox GIP quirks (firmware-dependent init, Series controllers needing extra handshakes) | R11 (v2) | Test several controller firmwares when pads return in v2; follow the `xpad.c` init sequences. |
 | Licensing (GPL + Snes9x non-commercial) | Distribution limits | Documented up front (D10). |
 
 **Resolved (rev 2)**
 
 - Power button / shutdown → §2a.1, D12, D13.
 - Recovery entry → §2a.3, D9.
-- USB-A routing → HS OTG (§2a.4); controller → Xbox (D11); PlayStation deferred.
+- USB-A routing → HS OTG (§2a.4); controller → Xbox (D11); PlayStation deferred. USB controllers as a whole → v2 (D14).
 - OTA → not in v1 (SD update through recovery instead).
 - Generic HID pads → v2. Charge mode → yes (D13). Licensing → personal/open source (D10).
 
 **Still open** (Phase 1 measurements: [bringup-results.md](bringup-results.md))
 
-1. Target display refresh: **measured 57.5 Hz** on the ST7123 with the BSP's timings (48.2 Hz computed for the ILI9881C). That drops ~2.6 NES frames per second, far more than the "occasional" drop assumed here, so Phase 2 retimes the DPI output to 60 Hz and checks the panel accepts it.
+1. ~~Target display refresh~~ **Resolved in Phase 2:** the ST7123 measured 57.5 Hz with the BSP's timings; shortening the vertical front porch (220 → 165 lines) gives **59.96 Hz measured** and the panel accepts it. The ILI9881C (48.2 Hz computed) needs a faster pixel clock instead and keeps the BSP timing for now; no unit to test on.
 2. Default audio sample rate: 48 kHz (proposed) or 44.1 kHz.
 3. GPIO35 power-button experiment (§2a.1): the button and software power-off were confirmed on the device, but the GPIO35 edge log wasn't saved, so it's still unknown whether U28 warns the P4 before a double-press cut.
 
@@ -346,6 +349,14 @@ A `hwtest` mode in main (it later becomes Recovery → "Test hardware") that exe
 - D6: FAT `rename()` fails when the target exists, so the atomic write is `unlink` + `rename`, and a leftover `.tmp` must be promoted on recovery.
 - D13: the IO-expander driver resets CHG_EN to low; `retro_tab5_board_init()` re-enables charging.
 
+**Phase 2 findings that change decisions** ([phase2-results.md](phase2-results.md))
+
+- D4: the CPU blit straight into the PSRAM frame buffer took ~15.5 ms per frame on the device with the emulator running (bound by cached PSRAM writes, which fill each line before writing it), too slow for 60 fps. Pixel Perfect now builds 24 native rows at a time in SRAM and a DMA engine copies each strip into the frame buffer while the CPU builds the next: GDMA memcpy for full-width strips (~10–12 ms per frame, 60 fps), the PPA at scale 1 for other widths. It stays nearest-neighbour. This was planned for Phase 7.
+- D6: an atomic write is `write .tmp → fsync → rename to .new → unlink target → rename .new`. A leftover `.new` is always complete and gets promoted; a leftover `.tmp` is always partial and gets deleted. That's stricter than "promote a leftover .tmp", which could promote a half-written first save.
+- D3: the DRC only slows playback when the emulator has stopped blocking on the ring. While it blocks, a low fill just reflects the time spent making a frame. Without this the DRC sat at about −1000 ppm.
+- §3.3: only ~355 KB of SRAM is free at boot with the 256 KB L2 cache, in several regions. Three 120 KB native frame buffers (the latest-frame-wins mailbox needs three) don't fit next to the blit strips, so they sit in PSRAM for now. Revisit the L2 cache size, or a paletted native format, before the SNES core needs SRAM (Phase 6).
+- The Tab5's audio output latency is ~36 ms (20 ms DMA + ~16 ms average ring), within the spec §15 target of < 40 ms. The host build needs a 40 ms ring under CoreAudio.
+
 ---
 
 ## 7. Test and measurement strategy
@@ -353,7 +364,7 @@ A `hwtest` mode in main (it later becomes Recovery → "Test hardware") that exe
 - **Host unit tests**: ring buffer, DRC resampler, CRC/SHA, library index, save-state container, mapping DB, config parser, XInput/GIP report parsers (fed with captured reports from Phase 1).
 - **Core correctness**: NES test ROM suites (nestest, blargg) and SNES test ROMs (e.g. PeterLemon/krom suites) run headless on the host build, compared against golden frame hashes.
 - **Replay-driven performance tests**: record input for a title's first N minutes, replay it on device with the dev overlay logging to serial, parse with `tools/` → FPS, frame-time p99, underruns. Rerun on every perf-sensitive change.
-- **On-device soak and fault injection**: battery pull, SD removal mid-write, controller hot-plug storms, 8-hour soak (Phase 8).
+- **On-device soak and fault injection**: battery pull, SD removal mid-write, 8-hour soak (Phase 8).
 - **Latency**: measure input-to-photon with a high-speed camera or LED harness once in Phase 3 and again before release.
 
 ---

@@ -1,9 +1,8 @@
 /*
- * RetroHAL platform lifecycle.
+ * RetroHAL platform lifecycle. FROZEN (plan Phase 2).
  *
- * PROVISIONAL: the video/audio/input/platform headers are a minimal Phase 0
- * surface used by the host build. They are redesigned and frozen in Phase 2;
- * only retro_log.h and retro_time.h are considered stable.
+ * Tab5: board bring-up (I2C, IO expanders, rails). Host: SDL, the window and
+ * the event loop, which must run on the main thread.
  */
 #pragma once
 
@@ -15,8 +14,9 @@ extern "C" {
 
 bool retro_platform_init(void);
 
-/* Process pending platform events (window, keyboard). Call once per frame.
- * Returns false once the user has asked to quit. */
+/* Process pending platform events (window, keyboard, mouse-as-touch). The
+ * host calls it from the main thread about once per frame; on the Tab5 it
+ * does nothing. Returns false once the user has asked to quit. */
 bool retro_platform_pump(void);
 
 void retro_platform_deinit(void);

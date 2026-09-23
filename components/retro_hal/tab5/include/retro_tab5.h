@@ -117,6 +117,17 @@ uint32_t retro_tab5_display_frames(void);
 /* Block until the next frame finishes scanning out. */
 bool retro_tab5_display_wait_frame(uint32_t timeout_ms);
 
+/* Refresh rate measured at init. With CONFIG_RETRO_TAB5_DISPLAY_60HZ the
+ * panel is retimed to 60 Hz first (bring-up measured 57.5 Hz on the ST7123
+ * with the BSP's timings). */
+float retro_tab5_display_refresh_hz(void);
+
+/* esp_timer time of the last frame-done interrupt, and the interval before
+ * it (0 until two frames have completed). The DPI driver restarts its DMA in
+ * that interrupt with whichever buffer was shown last. */
+int64_t retro_tab5_display_last_frame_us(void);
+uint32_t retro_tab5_display_frame_period_us(void);
+
 bool retro_tab5_display_brightness(int percent);
 
 /* ---- Touch ------------------------------------------------------------------- */
@@ -129,26 +140,48 @@ typedef struct {
 
 bool retro_tab5_touch_init(void);
 
-/* Poll the controller. Returns the number of points (0..max), -1 on error. */
+/* Read the controller. Returns the number of points (0..max), -1 on error.
+ * ST712x: ~0.1 ms with nothing touching, ~2 ms with fingers down at 400 kHz. */
 int retro_tab5_touch_read(retro_tab5_touch_point_t *pts, int max);
+
+/* Wait for the controller's "report ready" interrupt (ST712x boards).
+ * Returns false on timeout (always, where there is no interrupt). */
+bool retro_tab5_touch_wait(uint32_t timeout_ms);
+
+/* Interrupts seen so far; 0 means the line isn't working (poll instead). */
+uint32_t retro_tab5_touch_irqs(void);
 
 /* ---- Audio (ES8388 through esp_codec_dev) ------------------------------------ */
 
-/* I2S + codec, interleaved stereo s16 at sample_rate. Turns the speaker amp
- * on (the BSP does that when it opens the codec). */
+/* I2S + codec, interleaved stereo s16 at sample_rate, with a DMA queue of
+ * dma_desc buffers of dma_frames frames. Turns the speaker amp on. The
+ * channel is set up once per boot: a later call at the same rate unmutes and
+ * keeps the first DMA geometry; a different rate fails. */
+bool retro_tab5_audio_open(unsigned sample_rate, unsigned dma_desc, unsigned dma_frames);
+
+/* The DMA geometry in effect. */
+void retro_tab5_audio_geometry(unsigned *dma_desc, unsigned *dma_frames);
+
+/* retro_tab5_audio_open() with the BSP's default queue (6 x 240 frames). */
 bool retro_tab5_audio_init(unsigned sample_rate);
 
 /* Blocks while the I2S DMA queue is full. */
 bool retro_tab5_audio_write(const int16_t *stereo, size_t frames);
 
+/* As above with a timeout (UINT32_MAX = forever). Returns frames queued. */
+size_t retro_tab5_audio_write_timeout(const int16_t *stereo, size_t frames, uint32_t timeout_ms);
+
 bool retro_tab5_audio_volume(int percent);
+bool retro_tab5_audio_mute(bool mute);
 
 /* DMA queue depth in frames (descriptors x frames per descriptor). */
 size_t retro_tab5_audio_dma_frames(void);
 
 /* ---- microSD --------------------------------------------------------------------- */
 
-#define RETRO_TAB5_SD_MOUNT "/sdcard"
+/* The logical path of the "sd" volume (retro_storage.h), so the VFS path
+ * and the logical path are the same. Set CONFIG_BSP_SD_MOUNT_POINT to match. */
+#define RETRO_TAB5_SD_MOUNT "/storage/sd"
 
 typedef struct {
     char name[8];

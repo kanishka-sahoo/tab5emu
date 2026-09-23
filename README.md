@@ -5,21 +5,33 @@ NES and SNES emulation firmware for the M5Stack Tab5 (ESP32-P4), built on bare E
 - Product spec: [plan/tab5-retroconsole.md](plan/tab5-retroconsole.md)
 - Implementation plan: [plan/implementation-plan.md](plan/implementation-plan.md)
 
-Status: **Phase 1 (hardware bring-up)**. The firmware boots into a hardware test mode (below).
-Measurements so far are in [plan/bringup-results.md](plan/bringup-results.md). The host build opens
-a window with a test pattern.
+Status: **Phase 2 (RetroHAL and runtime pipelines)**. The firmware boots into the pipeline test:
+a synthetic core running on the full frontend (audio engine, video pipeline, controller manager),
+see below. The Phase 1 hardware test is still available (`CONFIG_RETRO_HWTEST_BOOT`).
+Measurements are in [plan/bringup-results.md](plan/bringup-results.md) (Phase 1) and
+[plan/phase2-results.md](plan/phase2-results.md) (Phase 2). The host build runs the same frontend
+in a window.
 
 ## Layout
 
 ```text
-main/                  firmware entry point
+main/                  firmware entry point, pipeline test mode
 components/
-  retro_common/        platform-neutral helpers (no IDF, no SDL): log ring, rotate-blit
+  retro_common/        platform-neutral helpers (no IDF, no SDL): blits, landscape drawing, SPSC
+                       ring, CRC-32, JSON, battery curve, log ring
   retro_hal/           RetroHAL public headers + backends
-    include/           retro_log.h, retro_time.h (stable); video/audio/input/platform (provisional until Phase 2)
+    include/           frozen headers: video, audio, input, storage, time, power, network (stub),
+                       log, platform, os (tasks/locks/memory), core (retro_core_t)
+    src/               shared code: logger, logical volumes and crash-safe files
     tab5/              ESP-IDF / BSP backend (the only code allowed to use the BSP)
       include/         retro_tab5.h: Tab5 board layer (display, touch, audio, SD, USB, rails, INA226)
-    host/              SDL2 backend for the desktop build
+    host/              SDL2 / pthreads backend for the desktop build
+  video_pipeline/      frame mailbox, display modes, scalers (CPU, DMA strips, PPA), video_out task
+  audio_engine/        SPSC ring, DRC resampler, audio_out task
+  controller_manager/  input sources -> 4 players, mapping DB, touch zones; Xbox pad driver
+                       (built but off: USB controllers are v2, plan D14)
+  emulator_manager/    frontend bring-up, frame loop, statistics / performance overlay
+  core_synth/          synthetic test core (Phase 2 exit test)
   hwtest/              Phase 1 hardware test mode (later Recovery -> "Test hardware")
 host/                  desktop CMake project (plan D8)
 test/host/             host unit tests (CTest)
@@ -53,21 +65,50 @@ tools. Use the bundled esptool instead:
 idf.py -p /dev/cu.usbmodemXXXX monitor
 ```
 
-Expected boot output:
+Expected boot output (abridged):
 
 ```text
 I (…) CORE: Tab5 Retro Console 0.1.0 (IDF v5.5.5, built …)
-I (…) CORE: chip rev v1.x, 2 cores, flash 16 MB
-I (…) CORE: PSRAM 32768 KB; heap free: …
-I (…) CORE: running from app0 @ 0x20000, reset reason: …
 I (…) CORE: boot complete
-I (…) CORE: hardware test mode (plan Phase 1); type "help" on the serial console
+I (…) VIDEO: retimed to 1455 lines (front porch 165): 59.99 Hz nominal
+I (…) VIDEO: display 720x1280, 1000 Mbps/lane, 59.96 Hz measured, …
+I (…) AUDIO: engine up: 48000 Hz out, DMA 4 x 240 frames (20.0 ms), ring HWM 24 ms
+I (…) CORE: Synthetic test core running: 256x240 @ 60.0988 Hz, audio 44100 Hz
+I (…) CORE: pipeline test running; type "help" for commands
+I (…) CORE: emu 59.90 fps, out 59.90 fps, lcd 59.90 Hz | … | xrun 0, … | dropped 9 | …
 ```
+
+## Pipeline test mode (Phase 2)
+
+The default boot mode runs a synthetic core (`components/core_synth`) through the whole frontend:
+scrolling colour bars, one box per player moved by its D-pad, a row of indicators per player for
+every button, MENU/POWER hotkey lamps, the frame counter, a 1-pixel checkerboard and an RGB565 ramp.
+It ticks at 880 Hz every emulated second; holding A or B plays a tone (left / right channel). The
+performance overlay (spec §45) sits in the right-hand border.
+
+Input is the touch screen (v1 has no USB controllers; see below). The touch controls are drawn in
+the side borders and light up green while held: L, the D-pad, SEL and MENU on the left; R, X/Y/A/B
+and START on the right. Where they overlap the game image (4:3, Stretch) they're drawn as outlines.
+This is a fixed layout until the Phase 3 touch overlay makes it configurable. MENU (or SELECT+START
+held 1 s) cycles the display mode; holding MENU 3 s lights POWER (the shutdown itself is Phase 7).
+Each touch down/up and each change in the held controls is logged, and the summary line counts
+touch reads.
+
+A summary line is logged every 10 s. Serial commands: `mode <0-4>` (Pixel Perfect, Original, 4:3,
+Fit, Stretch), `scan on|off`, `overlay on|off`, `bright <0-100>`, `vol <0-100>`,
+`res <w> <h>` (synthetic frame size, e.g. `res 256 224` for SNES geometry), `stats`.
+
+### USB controllers (v2)
+
+USB controllers are deferred to v2 (plan D14; spec R11/R12). The USB-A port is unused in v1 and its
+5 V rail is switched off at boot. The Xbox 360 / One / Series driver (`xinput_host.c`, plan D11), the
+positional default mapping (Xbox B is Nintendo A) and per-`vid:pid` remaps in
+`/retro/config/controllers.json` stay in the tree, unit tested, and are switched on with
+`CONFIG_RETRO_USB_PADS` (Controller manager menu) for v2 work.
 
 ## Hardware test mode
 
-Until the launcher exists (Phase 4) the firmware boots into `hwtest`
-(`CONFIG_RETRO_HWTEST_BOOT`). It runs the automatic tests once at boot (`CONFIG_RETRO_HWTEST_AUTORUN`,
+Set `CONFIG_RETRO_HWTEST_BOOT` (Hardware test menu) to boot into `hwtest` instead. It runs the automatic tests once at boot (`CONFIG_RETRO_HWTEST_AUTORUN`,
 about 50 s, with short test tones), then waits for commands. The screen shows the log, a status line
 (battery, clock, SD, USB pad) and a button bar with every interactive test (OFF must be held 2 s). The serial console takes
 commands too: `help` lists them, and `results` prints the Markdown results table. The table is
@@ -75,7 +116,7 @@ also saved to `/retro/hwtest/results.md` on the SD card after every command, and
 previous file as `results-N.md`, so results from a session on battery survive the reset caused by
 opening the serial port. `cat <path>` prints a saved file.
 
-Interactive checks (touch, headphones, Xbox pads, power button, power-off, light sleep) need someone
+Interactive checks (touch, headphones, Xbox pads (v2), power button, power-off, light sleep) need someone
 at the device; [plan/bringup-results.md](plan/bringup-results.md) lists the remaining ones and how to run them.
 
 Opening the USB serial port resets the board. Output printed during light sleep only appears after
@@ -95,11 +136,16 @@ Needs CMake, Ninja and SDL2 (`brew install cmake ninja sdl2`, or `apt install cm
 cmake -S host -B build-host -G Ninja
 cmake --build build-host
 ctest --test-dir build-host --output-on-failure
-./build-host/tab5emu_host
+./build-host/tab5emu_host [--mode 0-4] [--scanlines] [--overlay]
 ```
 
-Keys: arrows = D-pad, X = A, Z = B, S = X, A = Y, Q/W = L/R, Enter = Start, Right Shift = Select, F1 = Menu, Esc = quit.
-Hold A or B for a test tone. For headless runs: `SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy ./build-host/tab5emu_host --frames 120`.
+The host build runs the same pipeline test as the firmware on an emulated 720x1280 portrait panel,
+shown rotated in a 1280x720 window. Keys: arrows = D-pad, X = A, Z = B, S = X, A = Y, Q/W = L/R,
+Enter = Start, Right Shift = Select, F1 = Menu (cycles the display mode), Esc = quit. The mouse is the
+touch screen. The `sd` volume is `./sdcard` (or `$RETRO_SD_ROOT`). For headless runs:
+`SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy ./build-host/tab5emu_host --frames 120`
+(`--max-underruns N` makes it fail on audio underruns; SDL's dummy audio driver runs slow, so the
+emulated rate is lower there).
 
 ## Licensing
 

@@ -50,4 +50,9 @@ jobs:
         env:
           SDL_VIDEODRIVER: dummy
           SDL_AUDIODRIVER: dummy
-        run: ./build-host/tab5emu_host --frames 120
+          RETRO_HOST_SCREENSHOT: host-screenshot.bmp
+        run: ./build-host/tab5emu_host --frames 120 --overlay
+      - uses: actions/upload-artifact@v4
+        with:
+          name: host-screenshot
+          path: host-screenshot.bmp
