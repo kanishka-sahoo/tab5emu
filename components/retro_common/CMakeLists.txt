@@ -1,6 +1,7 @@
 # Platform-neutral helpers. Must not depend on ESP-IDF or SDL so that cores
 # and the host build can use it.
 set(RETRO_COMMON_SRCS
+    retro_blit.c
     retro_textring.c
 )
 

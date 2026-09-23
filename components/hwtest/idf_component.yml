@@ -1,0 +1,5 @@
+# The USB Host Library, for the Xbox pad probe (plan D11). Same pin as
+# retro_hal's manifest.
+dependencies:
+  idf: "==5.5.5"
+  espressif/usb: "==1.5.0"

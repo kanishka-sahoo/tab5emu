@@ -1,8 +1,10 @@
 /*
  * Tab5 Retro Console: boot entry point.
  *
- * Phase 0: bring up logging and report the platform. Later phases add the
- * boot sequence (display, SD, library, launcher) and mode dispatch here.
+ * Phase 0: bring up logging and report the platform.
+ * Phase 1: hand over to the hardware test (CONFIG_RETRO_HWTEST_BOOT). Later
+ * phases add the boot sequence (display, SD, library, launcher) and mode
+ * dispatch here.
  */
 #include <inttypes.h>
 
@@ -14,7 +16,9 @@
 #include "esp_psram.h"
 #include "esp_system.h"
 
+#include "hwtest.h"
 #include "retro_log.h"
+#include "sdkconfig.h"
 
 static const char *reset_reason_str(esp_reset_reason_t r)
 {
@@ -64,4 +68,7 @@ void app_main(void)
     retro_log_init();
     log_platform();
     RLOGI(CORE, "boot complete");
+#if CONFIG_RETRO_HWTEST_BOOT
+    hwtest_start();
+#endif
 }

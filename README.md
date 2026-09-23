@@ -5,18 +5,22 @@ NES and SNES emulation firmware for the M5Stack Tab5 (ESP32-P4), built on bare E
 - Product spec: [plan/tab5-retroconsole.md](plan/tab5-retroconsole.md)
 - Implementation plan: [plan/implementation-plan.md](plan/implementation-plan.md)
 
-Status: **Phase 0 (project foundation)**. The firmware boots and logs platform info; the host build opens a window with a test pattern.
+Status: **Phase 1 (hardware bring-up)**. The firmware boots into a hardware test mode (below).
+Measurements so far are in [plan/bringup-results.md](plan/bringup-results.md). The host build opens
+a window with a test pattern.
 
 ## Layout
 
 ```text
 main/                  firmware entry point
 components/
-  retro_common/        platform-neutral helpers (no IDF, no SDL)
+  retro_common/        platform-neutral helpers (no IDF, no SDL): log ring, rotate-blit
   retro_hal/           RetroHAL public headers + backends
     include/           retro_log.h, retro_time.h (stable); video/audio/input/platform (provisional until Phase 2)
     tab5/              ESP-IDF / BSP backend (the only code allowed to use the BSP)
+      include/         retro_tab5.h: Tab5 board layer (display, touch, audio, SD, USB, rails, INA226)
     host/              SDL2 backend for the desktop build
+  hwtest/              Phase 1 hardware test mode (later Recovery -> "Test hardware")
 host/                  desktop CMake project (plan D8)
 test/host/             host unit tests (CTest)
 partitions.csv         16 MB layout: nvs, otadata, phy_init, app0/app1 (6 MB each), coredump
@@ -57,7 +61,31 @@ I (…) CORE: chip rev v1.x, 2 cores, flash 16 MB
 I (…) CORE: PSRAM 32768 KB; heap free: …
 I (…) CORE: running from app0 @ 0x20000, reset reason: …
 I (…) CORE: boot complete
+I (…) CORE: hardware test mode (plan Phase 1); type "help" on the serial console
 ```
+
+## Hardware test mode
+
+Until the launcher exists (Phase 4) the firmware boots into `hwtest`
+(`CONFIG_RETRO_HWTEST_BOOT`). It runs the automatic tests once at boot (`CONFIG_RETRO_HWTEST_AUTORUN`,
+about 50 s, with short test tones), then waits for commands. The screen shows the log, a status line
+(battery, clock, SD, USB pad) and a button bar with every interactive test (OFF must be held 2 s). The serial console takes
+commands too: `help` lists them, and `results` prints the Markdown results table. The table is
+also saved to `/retro/hwtest/results.md` on the SD card after every command, and each boot keeps the
+previous file as `results-N.md`, so results from a session on battery survive the reset caused by
+opening the serial port. `cat <path>` prints a saved file.
+
+Interactive checks (touch, headphones, Xbox pads, power button, power-off, light sleep) need someone
+at the device; [plan/bringup-results.md](plan/bringup-results.md) lists the remaining ones and how to run them.
+
+Opening the USB serial port resets the board. Output printed during light sleep only appears after
+the port is reopened.
+
+## microSD card
+
+FAT32 with **32 KB clusters**. FatFs reads at most one cluster per request, so a card formatted with
+small clusters is slow: 512-byte clusters measured 1.8 MB/s against 15 MB/s raw. hwtest warns about
+this (`sd.cluster_size`).
 
 ## Host build
 

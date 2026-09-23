@@ -7,3 +7,5 @@ dependencies:
   espressif/esp_codec_dev: "==1.5.11"
   espressif/usb: "==1.5.0"
   espressif/esp_lvgl_port: "==2.9.0"
+  # The BSP depends on it privately; bsp/touch.h includes its header.
+  espressif/esp_lcd_touch: "==1.2.1"

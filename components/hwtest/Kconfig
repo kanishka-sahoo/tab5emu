@@ -1,0 +1,18 @@
+menu "Hardware test (hwtest)"
+
+    config RETRO_HWTEST_BOOT
+        bool "Boot into the hardware test"
+        default y
+        help
+            Start the Phase 1 bring-up tests instead of the (not yet
+            written) launcher.
+
+    config RETRO_HWTEST_AUTORUN
+        bool "Run the automatic tests at boot"
+        depends on RETRO_HWTEST_BOOT
+        default y
+        help
+            Runs "all" once at boot: board, display, PPA, SD, audio, power,
+            RTC, then starts the USB host. Plays short test tones.
+
+endmenu
