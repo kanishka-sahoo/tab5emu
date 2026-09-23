@@ -20,4 +20,26 @@ menu "Retro HAL"
             Tee ESP_LOGx output (drivers, BSP) into the log ring so recovery
             mode shows it alongside RetroHAL messages.
 
+    config RETRO_TAB5_SHUNT_MOHM
+        int "Tab5 battery shunt resistor (milliohm)"
+        range 1 1000
+        default 5
+        help
+            Shunt on the INA226 battery monitor. M5Unified uses 5 mOhm for
+            the Tab5.
+
+    choice RETRO_TAB5_LANDSCAPE
+        prompt "Tab5 landscape orientation"
+        default RETRO_TAB5_LANDSCAPE_CW
+        help
+            The panel scans out in portrait (720x1280, plan D2). This picks
+            which way landscape content is rotated onto it. CW puts the top
+            of the landscape image on the panel's native right edge.
+
+        config RETRO_TAB5_LANDSCAPE_CW
+            bool "Rotate 90 degrees clockwise"
+        config RETRO_TAB5_LANDSCAPE_CCW
+            bool "Rotate 90 degrees counter-clockwise"
+    endchoice
+
 endmenu

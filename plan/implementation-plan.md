@@ -334,11 +334,17 @@ A `hwtest` mode in main (it later becomes Recovery → "Test hardware") that exe
 - OTA → not in v1 (SD update through recovery instead).
 - Generic HID pads → v2. Charge mode → yes (D13). Licensing → personal/open source (D10).
 
-**Still open**
+**Still open** (Phase 1 measurements: [bringup-results.md](bringup-results.md))
 
-1. Target display refresh: does the panel run at exactly 60 Hz? If not, 60.0988 Hz NES content will occasionally drop or repeat a frame (acceptable under §60). Measured in Phase 1.
+1. Target display refresh: **measured 57.5 Hz** on the ST7123 with the BSP's timings (48.2 Hz computed for the ILI9881C). That drops ~2.6 NES frames per second, far more than the "occasional" drop assumed here, so Phase 2 retimes the DPI output to 60 Hz and checks the panel accepts it.
 2. Default audio sample rate: 48 kHz (proposed) or 44.1 kHz.
-3. GPIO35 power-button experiment result (§2a.1).
+3. GPIO35 power-button experiment (§2a.1): the button and software power-off were confirmed on the device, but the GPIO35 edge log wasn't saved, so it's still unknown whether U28 warns the P4 before a double-press cut.
+
+**Phase 1 findings that change decisions**
+
+- D4: the PPA's 3× scale is bilinear (block centres exact, the rest blended), so Pixel Perfect stays on the CPU blit (10.9 ms/frame).
+- D6: FAT `rename()` fails when the target exists, so the atomic write is `unlink` + `rename`, and a leftover `.tmp` must be promoted on recovery.
+- D13: the IO-expander driver resets CHG_EN to low; `retro_tab5_board_init()` re-enables charging.
 
 ---
 

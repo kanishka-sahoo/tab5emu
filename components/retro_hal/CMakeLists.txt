@@ -6,13 +6,23 @@ set(RETRO_HAL_COMMON_SRCS
 )
 
 if(ESP_PLATFORM)
+    # tab5/include/retro_tab5.h is the Tab5 board layer (firmware only). It
+    # has no IDF types, so exposing it doesn't leak driver headers.
     idf_component_register(SRCS ${RETRO_HAL_COMMON_SRCS}
                                 tab5/retro_log_tab5.c
                                 tab5/retro_time_tab5.c
-                           INCLUDE_DIRS include
+                                tab5/retro_tab5_board.c
+                                tab5/retro_tab5_display.c
+                                tab5/retro_tab5_touch.c
+                                tab5/retro_tab5_audio.c
+                                tab5/retro_tab5_sd.c
+                                tab5/retro_tab5_usb.c
+                                tab5/retro_tab5_power.c
+                           INCLUDE_DIRS include tab5/include
                            PRIV_INCLUDE_DIRS src
                            REQUIRES retro_common
-                           PRIV_REQUIRES log esp_timer)
+                           PRIV_REQUIRES log esp_timer esp_mm esp_lcd esp_driver_i2c esp_driver_i2s
+                                         sdmmc fatfs)
 else()
     find_package(SDL2 REQUIRED)
     find_package(Threads REQUIRED)

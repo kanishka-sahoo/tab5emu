@@ -1,9 +1,9 @@
 /*
- * RetroHAL time. Monotonic clock only for now; the RTC (spec §24) is added in
- * Phase 1.
+ * RetroHAL time: monotonic clock and the battery-backed wall clock (spec §24).
  */
 #pragma once
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #ifdef __cplusplus
@@ -19,6 +19,16 @@ static inline uint32_t retro_time_ms(void)
 {
     return (uint32_t)(retro_time_us() / 1000);
 }
+
+struct tm;
+
+/* Wall clock, local time with no time zone. Tab5: RX8130CE RTC. Host: the
+ * system clock. Returns false if the clock can't be read or has lost its
+ * time (e.g. the backup supply ran out); *out is left untouched then. */
+bool retro_time_wall_get(struct tm *out);
+
+/* Returns false if the clock can't be set (always on the host). */
+bool retro_time_wall_set(const struct tm *tm);
 
 #ifdef __cplusplus
 }

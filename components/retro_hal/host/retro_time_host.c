@@ -17,3 +17,15 @@ uint64_t retro_time_us(void)
     }
     return now_us() - start;
 }
+
+bool retro_time_wall_get(struct tm *out)
+{
+    time_t now = time(NULL);
+    return localtime_r(&now, out) != NULL;
+}
+
+bool retro_time_wall_set(const struct tm *tm)
+{
+    (void)tm;
+    return false;
+}
