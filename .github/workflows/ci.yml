@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  firmware:
+    name: Firmware (ESP-IDF v5.5.5, esp32p4)
+    runs-on: ubuntu-latest
+    # Pinned by digest (plan D1); keep in sync with the local docker wrapper.
+    container: espressif/idf:v5.5.5@sha256:a9231d0697ab8f7517cc072e93b7c83e04907bfbfba80b6440d7dbbf90665cf2
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        shell: bash
+        run: |
+          . "$IDF_PATH/export.sh"
+          idf.py build
+      - name: Size report
+        shell: bash
+        run: |
+          . "$IDF_PATH/export.sh"
+          idf.py size
+      - uses: actions/upload-artifact@v4
+        with:
+          name: firmware
+          path: |
+            build/tab5emu.bin
+            build/tab5emu.elf
+            build/bootloader/bootloader.bin
+            build/partition_table/partition-table.bin
+            build/flasher_args.json
+
+  host:
+    name: Host build + unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends cmake ninja-build libsdl2-dev
+      - name: Configure
+        run: cmake -S host -B build-host -G Ninja -DRETRO_WERROR=ON
+      - name: Build
+        run: cmake --build build-host
+      - name: Unit tests
+        run: ctest --test-dir build-host --output-on-failure
+      - name: Smoke test (headless)
+        env:
+          SDL_VIDEODRIVER: dummy
+          SDL_AUDIODRIVER: dummy
+        run: ./build-host/tab5emu_host --frames 120

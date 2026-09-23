@@ -1,0 +1,23 @@
+menu "Retro HAL"
+
+    config RETRO_LOG_RING_SIZE
+        int "In-RAM log ring size (bytes)"
+        range 1024 262144
+        default 16384
+        help
+            Size of the circular log kept in internal RAM for the recovery
+            log viewer (spec §46).
+
+    config RETRO_LOG_DEFAULT_LEVEL
+        int "Default log level (0=none 1=error 2=warn 3=info 4=debug 5=verbose)"
+        range 0 5
+        default 3
+
+    config RETRO_LOG_CAPTURE_IDF
+        bool "Capture ESP-IDF log output in the in-RAM ring"
+        default y
+        help
+            Tee ESP_LOGx output (drivers, BSP) into the log ring so recovery
+            mode shows it alongside RetroHAL messages.
+
+endmenu

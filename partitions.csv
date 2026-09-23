@@ -1,0 +1,10 @@
+# Tab5 Retro Console partition table, 16 MB flash (plan §4 Phase 0).
+# ROMs and assets never live in flash (spec §34); they come from microSD.
+# 0xC30000-0xFFFFFF (3.8 MB) is intentionally left unallocated (reserved).
+# Name,    Type, SubType,  Offset,   Size,     Flags
+nvs,       data, nvs,      0x9000,   0x6000,
+otadata,   data, ota,      0xF000,   0x2000,
+phy_init,  data, phy,      0x11000,  0x1000,
+app0,      app,  ota_0,    0x20000,  0x600000,
+app1,      app,  ota_1,    0x620000, 0x600000,
+coredump,  data, coredump, 0xC20000, 0x10000,

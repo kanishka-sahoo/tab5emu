@@ -1,0 +1,64 @@
+# Tab5 Retro Console: ESP-IDF v5.5.5 defaults (plan §4 Phase 0).
+# Options that later phases will measure and tune are marked "revisit".
+
+CONFIG_IDF_TARGET="esp32p4"
+
+# --- Chip / CPU ---------------------------------------------------------------
+# The Tab5's ESP32-P4NRW32 is pre-3.0 silicon, which tops out at 360 MHz.
+# REV_MIN_1 accepts any pre-3.0 unit; main.c logs the actual revision, so
+# raise this to v1.0 once bring-up confirms every unit is v1.x (revisit).
+CONFIG_ESP32P4_SELECTS_REV_LESS_V3=y
+CONFIG_ESP32P4_REV_MIN_1=y
+CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_360=y
+CONFIG_COMPILER_OPTIMIZATION_PERF=y
+
+# --- Flash / partitions (16 MB) -------------------------------------------------
+CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
+CONFIG_ESPTOOLPY_FLASHMODE_QIO=y
+CONFIG_ESPTOOLPY_FLASHFREQ_80M=y
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
+CONFIG_PARTITION_TABLE_FILENAME="partitions.csv"
+
+# --- PSRAM (32 MB, 200 MHz) -------------------------------------------------------
+CONFIG_SPIRAM=y
+CONFIG_SPIRAM_SPEED_200M=y
+CONFIG_SPIRAM_USE_MALLOC=y
+# Small allocations stay internal; large buffers (framebuffers, ROMs) go to PSRAM.
+CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=4096
+CONFIG_SPIRAM_MALLOC_RESERVE_INTERNAL=65536
+
+# --- Caches ---------------------------------------------------------------------
+# L2 cache is carved out of the 768 KB HP SRAM. 256 KB leaves ~512 KB for
+# emulator hot state and native framebuffers (plan §3.3) (revisit in Phase 1/6).
+CONFIG_CACHE_L2_CACHE_256KB=y
+CONFIG_CACHE_L2_CACHE_LINE_128B=y
+
+# --- FreeRTOS ---------------------------------------------------------------------
+CONFIG_FREERTOS_HZ=1000
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=8192
+
+# --- Watchdogs ------------------------------------------------------------------
+# The emu task owns CPU0 during gameplay and never yields to IDLE0, so the
+# task WDT must not watch IDLE0. CPU1 (system tasks) stays watched.
+CONFIG_ESP_TASK_WDT_EN=y
+CONFIG_ESP_TASK_WDT_INIT=y
+CONFIG_ESP_TASK_WDT_TIMEOUT_S=5
+CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU0=n
+CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU1=y
+CONFIG_ESP_INT_WDT=y
+
+# --- Console / logging ----------------------------------------------------------
+# USB-C is the flashing/console/JTAG port (spec §21).
+CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y
+# Plain text so captured lines in the in-RAM log ring stay readable.
+CONFIG_LOG_COLORS=n
+
+# --- Core dump ------------------------------------------------------------------
+CONFIG_ESP_COREDUMP_ENABLE_TO_FLASH=y
+CONFIG_ESP_COREDUMP_DATA_FORMAT_ELF=y
+
+# --- Storage --------------------------------------------------------------------
+# Long file names for ROM libraries.
+CONFIG_FATFS_LFN_HEAP=y
+CONFIG_FATFS_MAX_LFN=255
